@@ -12,6 +12,11 @@
   --accent2: #ffb454;
   --danger: #ff6b6b;
   --ok: #58d68d;
+  /* 玩家霓虹色（P1-P4，HUD / 结算 / 姿态小窗全局统一） */
+  --p1: #00e5ff;
+  --p2: #ff2d55;
+  --p3: #bd00ff;
+  --p4: #39ff14;
   /* 大字体系：标题 / 正文 / 小注，随视口宽度缩放，电视端足够大 */
   --fs-hero: clamp(44px, 8vw, 96px);
   --fs-title: clamp(30px, 5vw, 56px);
@@ -266,6 +271,40 @@ body,
 
 #rotate-tip p {
   font-size: var(--fs-title);
+}
+
+/* ============ 对局暂停提示 ============ */
+#pause-tip {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 15, 22, 0.72);
+  pointer-events: none;
+}
+
+#pause-tip .pause-inner {
+  text-align: center;
+  color: var(--text);
+}
+
+#pause-tip .pause-icon {
+  font-size: 72px;
+  margin-bottom: 12px;
+}
+
+#pause-tip p {
+  font-size: var(--fs-title);
+  font-weight: 800;
+}
+
+#pause-tip .sub {
+  margin-top: 8px;
+  font-size: var(--fs-note);
+  font-weight: 400;
+  color: var(--sub);
 }
 
 /* ============ 通用 ============ */

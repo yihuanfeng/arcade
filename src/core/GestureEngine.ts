@@ -29,10 +29,14 @@ export class GestureEngine {
   /** 最近一帧姿态（ready 站位确认 / 姿态小窗） */
   poseFrames: PoseFrame[] = []
   /** 手坐标 / 骨架点平滑缓存（key=player:side / player），减少识别帧间抖动 */
-  private smoothHand = new Map<string, { x: number; y: number }>()
+  private smoothHand = new Map<string, { x: number; y: number; sx: number; sy: number; ts: number }>()
   private smoothLand = new Map<number, PosePoint[]>()
   /** 平滑系数：新值占比（越大跟手越快、越小越稳） */
   private readonly SMOOTH = 0.45
+  /** 静止去抖阈值（归一化位移/帧）：小于该位移视为手静止，沿用上次位置，消除高频微抖 */
+  private readonly STILL_EPS = 0.0015
+  /** 速度平滑系数（EMA）：抑制单帧速度尖刺 */
+  private readonly SPEED_SMOOTH = 0.5
 
   constructor(private createCamera: () => PoseProvider = () => new MediaPipeProvider()) {}
 
@@ -102,18 +106,38 @@ export class GestureEngine {
     this.wire(this.provider)
   }
 
-  /** 把 provider 的事件流接到引擎广播（转发层做全局平滑：手坐标 + 骨架点） */
+  /** 把 provider 的事件流接到引擎广播（转发层做全局平滑：手坐标 + 骨架点 + 速度 EMA + 静止去抖） */
   private wire(provider: PoseProvider): void {
     provider.onEvent((e) => {
       const hands = e.type === 'point' ? e.hands : e.type === 'tap' && e.hand ? [e.hand] : []
+      const now = performance.now()
       for (const h of hands) {
         const key = `${h.player}:${h.side}`
         const prev = this.smoothHand.get(key)
         if (prev) {
-          h.x = prev.x + (h.x - prev.x) * this.SMOOTH
-          h.y = prev.y + (h.y - prev.y) * this.SMOOTH
+          const dt = Math.max(0.001, (now - prev.ts) / 1000)
+          const rawDx = h.x - prev.x
+          const rawDy = h.y - prev.y
+          if (Math.abs(rawDx) < this.STILL_EPS && Math.abs(rawDy) < this.STILL_EPS) {
+            // 静止：沿用上次位置（去抖），速度衰减到 0
+            h.x = prev.x
+            h.y = prev.y
+            h.speedX = prev.sx * (1 - this.SPEED_SMOOTH)
+            h.speedY = prev.sy * (1 - this.SPEED_SMOOTH)
+          } else {
+            h.x = prev.x + rawDx * this.SMOOTH
+            h.y = prev.y + rawDy * this.SMOOTH
+            // 速度 EMA：帧间位移/时间，混合上一次速度抑制单帧尖刺
+            const instX = rawDx / dt
+            const instY = rawDy / dt
+            h.speedX = prev.sx + (instX - prev.sx) * this.SPEED_SMOOTH
+            h.speedY = prev.sy + (instY - prev.sy) * this.SPEED_SMOOTH
+          }
+        } else {
+          h.speedX = 0
+          h.speedY = 0
         }
-        this.smoothHand.set(key, { x: h.x, y: h.y })
+        this.smoothHand.set(key, { x: h.x, y: h.y, sx: h.speedX, sy: h.speedY, ts: now })
       }
       if (e.type === 'point') this.hands = e.hands
       this.listeners.forEach((cb) => cb(e))

@@ -209,9 +209,9 @@ export class MediaPipeProvider implements PoseProvider {
         const locked = this.tapLock.get(key) || 0
         if (speedY > TAP_SPEED && now - locked > TAP_COOLDOWN) {
           this.tapLock.set(key, now)
-          this.emit({ type: 'tap', hand: { player, side, x: hx, y: hy, visible: true, speedY }, player })
+          this.emit({ type: 'tap', hand: { player, side, x: hx, y: hy, visible: true, speedY, speedX: 0 }, player })
         }
-        return { player, side, x: hx, y: hy, visible: true, speedY }
+        return { player, side, x: hx, y: hy, visible: true, speedY, speedX: 0 }
       }
 
       // 生成可见的手（左手/右手各自独立）
@@ -235,7 +235,7 @@ export class MediaPipeProvider implements PoseProvider {
         if (prev) {
           this.emit({
             type: 'point',
-            hands: [{ player: p, side: 'right', x: prev.x, y: prev.y, visible: false, speedY: 0 }],
+            hands: [{ player: p, side: 'right', x: prev.x, y: prev.y, visible: false, speedY: 0, speedX: 0 }],
           })
         }
       }

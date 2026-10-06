@@ -27,6 +27,7 @@ export class MockProvider implements PoseProvider {
       y: 0.5,
       visible: true,
       speedY: 0,
+      speedX: 0,
     }
   })
   private keys = new Set<string>()

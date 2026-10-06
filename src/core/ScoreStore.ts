@@ -7,7 +7,9 @@ export interface PlayerHistory {
   best: number
   last: number
   plays: number
-  recent: Array<{ score: number; hits: number; ts: number }>
+  /** 最近一局的自定义统计（每游戏 label/value） */
+  lastStats?: Array<{ label: string; value: number }>
+  recent: Array<{ score: number; hits: number; ts: number; stats?: Array<{ label: string; value: number }> }>
 }
 
 const MAX_RECENT = 10
@@ -28,6 +30,7 @@ export class ScoreStore {
         best: parsed.best ?? 0,
         last: parsed.last ?? 0,
         plays: parsed.plays ?? 0,
+        lastStats: parsed.lastStats,
         recent: parsed.recent ?? [],
       }
     } catch {
@@ -45,8 +48,9 @@ export class ScoreStore {
     const isRecord = ps.score > hist.best
     hist.best = Math.max(hist.best, ps.score)
     hist.last = ps.score
+    hist.lastStats = ps.stats
     hist.plays += 1
-    hist.recent.push({ score: ps.score, hits: ps.hits, ts: Date.now() })
+    hist.recent.push({ score: ps.score, hits: ps.hits, ts: Date.now(), stats: ps.stats })
     if (hist.recent.length > MAX_RECENT) hist.recent = hist.recent.slice(-MAX_RECENT)
     try {
       this.storage.setItem(this.key(gameId, ps.player), JSON.stringify(hist))

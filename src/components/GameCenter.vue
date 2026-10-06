@@ -25,6 +25,10 @@ let nav: ReturnType<typeof createGestureUiNav> | null = null
 
 const srcOptions = { auto: '自动', camera: '摄像头', mock: '模拟' } as const
 
+function diffText(d: 'easy' | 'normal' | 'hard'): string {
+  return d === 'easy' ? '简单' : d === 'normal' ? '中等' : '困难'
+}
+
 function setPlayers(n: 1 | 2 | 3 | 4) {
   playerCount.value = n
 }
@@ -115,6 +119,10 @@ onUnmounted(() => {
         <div class="icon">{{ g.icon }}</div>
         <div class="name">{{ g.name }}</div>
         <div class="desc">{{ g.desc }}</div>
+        <div class="meta">
+          <span v-if="g.difficulty" class="diff" :class="g.difficulty">{{ diffText(g.difficulty) }}</span>
+          <span v-if="g.controls" class="ctrl">{{ g.controls }}</span>
+        </div>
         <div class="pcount">{{ playerCount }} 人 · {{ g.maxPlayers > 1 ? `支持 ${g.maxPlayers} 人` : '单人' }}</div>
       </div>
     </div>
@@ -284,6 +292,42 @@ onUnmounted(() => {
   color: var(--sub);
   margin-top: 4px;
   line-height: 1.35;
+}
+
+.card .meta {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.card .meta .diff {
+  font-size: var(--fs-note);
+  font-weight: 700;
+  padding: 2px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--sub);
+}
+
+.card .meta .diff.easy {
+  color: var(--ok);
+  background: rgba(88, 214, 141, 0.14);
+}
+
+.card .meta .diff.normal {
+  color: var(--accent2);
+  background: rgba(255, 180, 84, 0.14);
+}
+
+.card .meta .diff.hard {
+  color: var(--danger);
+  background: rgba(255, 107, 107, 0.14);
+}
+
+.card .meta .ctrl {
+  font-size: var(--fs-note);
+  color: var(--sub);
 }
 
 .card .pcount {

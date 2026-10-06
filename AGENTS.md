@@ -31,11 +31,12 @@ src/
 ├── main.ts / App.vue          # 装配：引擎单例、游戏注册、视图切换、光标层
 ├── styles/main.css            # 全局：CSS 变量（--fs-hero/title/body/sub/note）、覆盖层
 ├── core/                      # 引擎层（与具体游戏无关，新游戏不许改坏这里）
-│   ├── GameEngine.ts          # 游戏生命周期、canvas、事件、结算
-│   ├── GestureEngine.ts       # 全局手势：Provider 切换、转发层平滑、onEvent/onPose
+│   ├── GameEngine.ts          # 生命周期、canvas、toCanvas 坐标封装、结算落库、visibilitychange 暂停
+│   ├── GestureEngine.ts       # 全局手势：Provider 切换、转发层平滑/静止去抖/速度 EMA、onEvent/onPose
+│   ├── gameKit.ts             # 通用玩法工具箱：粒子爆发 / 飘字 / 特效（每局注入 ctx.fx，换局自动清空）
 │   ├── gestureUi.ts           # UI 统一交互 hold-to-confirm（进度环光标）
-│   ├── AudioManager.ts        # 音频注册与播放
-│   ├── ScoreStore.ts          # 每游戏每玩家历史最佳（localStorage）
+│   ├── AudioManager.ts        # 音频注册与播放（按游戏命名空间隔离）
+│   ├── ScoreStore.ts          # 每游戏每玩家历史统一存储（最高/场次/最近 10 局 + 自定义 stats）
 │   ├── poseRender.ts          # 骨架绘制（PoseOverlay / 测试页共用）
 │   ├── types.ts               # GameSpec / GameInstance / GameContext / GestureEvent / MatchConfig…
 │   └── providers/
@@ -63,6 +64,8 @@ src/
 
 * 手在屏幕中间 → x=0.5；游戏内光标 / 手环直接用 `x = h.x * innerWidth` 换算
 
+* 游戏内画布坐标（1280×720 逻辑空间）统一用 `engine.toCanvas(hx, hy)` 换算（处理画布等比缩放居中时的 x/y 偏移）；`routeGesture` 已把 provider 的手坐标转成画布归一化后发给游戏
+
 * **禁止**再按 "玩家区" 做半区缩放（历史教训：单人 + 双人都被半区化过，手到中间就跳右半边）
 
 * 玩家归属（双人）由 Provider 按左右判断（可见腕平均屏幕 x < 0.5 → P0），游戏里不重算
@@ -73,9 +76,9 @@ src/
 
 
 
-* `GestureEngine` 是全局单例，**转发层已做指数平滑**（SMOOTH=0.45：手坐标 + 骨架 33 点），新游戏**不要自己再做平滑**
+* `GestureEngine` 是全局单例，转发层已做：**指数平滑**（SMOOTH=0.45，手坐标 + 骨架 33 点）、**静止去抖**（位移小于阈值沿用上次位置，消除高频微抖）、**速度 EMA**（speedX/speedY 平滑，抑制单帧尖刺）。新游戏**不要自己再做平滑**
 
-* `gesture.onEvent(cb)` 订阅手势事件（point/tap，含 player/side）；`gesture.onPose(cb)` 订阅骨架帧
+* `gesture.onEvent(cb)` 订阅手势事件（point/tap，含 player/side，`Hand` 带 speedX/speedY）；`gesture.onPose(cb)` 订阅骨架帧（骨骼数据 33 点，玩法语义如重心/挥动方向由游戏自己从骨骼算）
 
 * `gesture.start(playerCount, source)` 切换输入源（auto/camera/mock）；切换时平滑缓存自动清空
 
@@ -94,10 +97,11 @@ src/
 
 
 ```
-GameSpec { id, name, icon, desc, maxPlayers: 1|2, create(ctx: GameContext): GameInstance }
+GameSpec { id, name, icon, desc, maxPlayers: 1|2|3|4, genre?, difficulty?, controls?, create(ctx) }
 GameInstance {
   onEnter()          // 进入时初始化、开始回合
   onExit()           // 离开时清理（取消动画/事件/音频）
+  pause?() / resume?()  // 切后台/来电（引擎 visibilitychange 调用，对局计时由引擎暂停 update）
   update(dt)         // 逻辑帧
   render(ctx, w, h)  // canvas 绘制（引擎已按 16:9 虚拟视口缩放）
   onGesture(e)       // 手势事件分发（tap/point）
@@ -109,7 +113,13 @@ GameInstance {
 
 * 结束对局：游戏内调用 `ctx.engine.endGame(result)`，引擎自动切到结算（ResultOverlay 复用）
 
-* 历史最佳：`ctx.scores.load(gameId, player)` / 结算组件自动展示
+* **结算通用统计**：`PlayerScore` 带 `stats: [{label, value}]`（每游戏自定义，如打地鼠"击中/最高连击"）；`ctx.scores.submit/load` 统一存储（最高分 / 总场次 / 最近 10 局 + stats），结算页自动展示历史最高与场次
+
+* **表现层用 GameKit**：`ctx.fx.burst(x,y,color,n)` 粒子 / `ctx.fx.float(x,y,text,color,size)` 飘字，update 里调 `ctx.fx.update(dt)`、render 里调 `ctx.fx.render(ctx)`。**不要自己在游戏里再实现粒子/飘字**
+
+* **音频命名空间**：引擎 startGame 时自动 `audio.setNamespace(spec.id)`，游戏内 `audio.register(ASSETS)` / `play('hit')` 自动带前缀，跨游戏同名音频不冲突；回大厅自动清空
+
+* **对局暂停**：引擎监听 visibilitychange，playing→paused（调游戏 pause）→playing（调 resume），App 显示"已暂停"遮罩；游戏实现 pause/resume 时停/续 BGM 即可（计时由引擎暂停）
 
 ### 5. 新游戏注册（三步）
 
@@ -152,6 +162,8 @@ GameInstance {
 12. **站位确认**：每局开始前站位 3 秒（ReadyOverlay），识别到身体保持 3s 才开；右下角 PoseOverlay 全局显示（Mock / 摄像头一致，无边框半透明，靠 P1-P4 霓虹色分辨人）
 
 13. **构建严格**：vue-tsc 严格模式下未使用变量即失败；模板 ref 未声明也可能报错，改完先 build
+
+14. **暂停遮罩验证**：切 tab 后台 → 引擎 state=paused → 页面出现 `#pause-tip`；MutationObserver 回调在后台 tab 会被浏览器节流延迟，验证时要等回前台再读数；**对局结束后（state=over）切 tab 不会触发暂停，这是正常行为**，别误判为 bug
 
 ## 六、验证方法（交付前必做）
 

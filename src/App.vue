@@ -172,6 +172,15 @@ async function setInputSource(src: 'auto' | 'camera' | 'mock') {
   <!-- 右下角身体姿态小窗（任何页面常驻，摄像头/Mock 外观一致） -->
   <PoseOverlay :gesture="gesture" />
 
+  <!-- 对局暂停（切后台/来电，引擎 visibilitychange 触发） -->
+  <div v-if="state === 'paused'" class="pause-tip" id="pause-tip">
+    <div class="pause-inner">
+      <div class="pause-icon">⏸</div>
+      <p>已暂停</p>
+      <p class="sub">回到本页继续游戏</p>
+    </div>
+  </div>
+
   <!-- 体感测试页 -->
   <GestureTestPage
     v-show="view === 'test'"

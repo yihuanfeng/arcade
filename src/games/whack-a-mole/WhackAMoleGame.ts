@@ -61,16 +61,6 @@ interface Target {
   fuse: number
 }
 
-interface FloatText {
-  x: number
-  y: number
-  text: string
-  color: string
-  life: number
-  max: number
-  size: number
-}
-
 /** 接触命中半径（全区归一化：手与洞中心距离小于该值即打一下） */
 const HIT_RADIUS = 0.1
 /** 炸弹自动爆炸倒计时（秒） */
@@ -80,17 +70,6 @@ const COMBO_MILESTONE = 5
 /** 连击里程碑奖励分 */
 const COMBO_BONUS = 50
 
-interface Particle {
-  x: number
-  y: number
-  vx: number
-  vy: number
-  life: number
-  max: number
-  color: string
-  size: number
-}
-
 interface PlayerState {
   score: number
   hits: number
@@ -98,8 +77,6 @@ interface PlayerState {
   maxCombo: number
   lives: number
   flash: number
-  particles: Particle[]
-  floats: FloatText[]
 }
 
 /* ---------- 工具 ---------- */
@@ -170,9 +147,17 @@ export class WhackAMoleGame implements GameInstance {
       maxCombo: 0,
       lives: LIVES,
       flash: 0,
-      particles: [],
-      floats: [],
     }
+  }
+
+  /** 切后台暂停（引擎 visibilitychange 调用）：停 BGM，游戏计时由引擎暂停 update */
+  pause(): void {
+    this.ctx.audio.stopBgm()
+  }
+
+  /** 回前台恢复：重启 BGM（对局计时由引擎恢复 update 继续） */
+  resume(): void {
+    if (this.state === 'play' && this.bgmStarted) this.ctx.audio.startBgm('bgm')
   }
 
   /* ================= 更新 ================= */
@@ -221,26 +206,14 @@ export class WhackAMoleGame implements GameInstance {
       }
     }
     this.targets = this.targets.filter((tg) => tg.state === 'up' || (tg.state === 'hit' && this.t - tg.appearAt < tg.life + 0.35))
-    // 玩家：红闪 / 飘字 / 粒子
+    // 表现层：飘字/粒子（GameKit）
+    this.ctx.fx.update(dt)
+    // 玩家：红闪
     let anyAlive = false
     for (const p of this.players) {
       if (p.lives <= 0) continue
       anyAlive = true
       if (p.flash > 0) p.flash -= dt
-      // 飘字：上飘 + 淡出
-      for (const ft of p.floats) {
-        ft.life -= dt
-        ft.y -= 70 * dt
-      }
-      p.floats = p.floats.filter((ft) => ft.life > 0)
-      // 粒子
-      p.particles = p.particles.filter((pt) => pt.life > 0)
-      for (const pt of p.particles) {
-        pt.life -= dt
-        pt.x += pt.vx * dt
-        pt.y += pt.vy * dt
-        pt.vy += 300 * dt
-      }
     }
     if (this.timeLeft <= 0 || !anyAlive) {
       this.finish()
@@ -317,24 +290,23 @@ export class WhackAMoleGame implements GameInstance {
     this.ctx.audio.play('explosion')
     for (const p of this.players) {
       if (p.lives <= 0) continue
-      const pi = this.players.indexOf(p)
       p.lives -= 1
       p.combo = 0
       p.flash = 0.5
-      this.burst(pi, px, py, '#ff6b6b', 8)
-      this.floats(pi, px, py, '爆炸！-1♥', '#ff6b6b', VIEW_H * 0.05)
+      this.ctx.fx.burst(px, py, '#ff6b6b', 8)
+      this.ctx.fx.float(px, py, '爆炸！-1♥', '#ff6b6b', VIEW_H * 0.05)
     }
   }
 
   /** 炸弹灭火（碰到炸弹不掉血，打它=浇水灭火） */
-  private extinguish(p: PlayerState, tg: Target): void {
+  private extinguish(tg: Target): void {
     const hp = this.holePos(tg.hole)
     const px = hp.x * VIEW_W
     const py = hp.y * VIEW_H
     tg.state = 'down'
     this.ctx.audio.play('collect')
-    this.burst(this.players.indexOf(p), px, py, '#38bdf8', 14)
-    this.floats(this.players.indexOf(p), px, py - VIEW_H * 0.08, '灭火！', '#38bdf8', VIEW_H * 0.045)
+    this.ctx.fx.burst(px, py, '#38bdf8', 14)
+    this.ctx.fx.float(px, py - VIEW_H * 0.08, '灭火！', '#38bdf8', VIEW_H * 0.045)
   }
 
   private hitTarget(player: number, tg: Target): void {
@@ -346,7 +318,7 @@ export class WhackAMoleGame implements GameInstance {
     let pts = 0
     // 炸弹：碰到=灭火，不掉血不掉分
     if (tg.kind === 'bomb') {
-      this.extinguish(p, tg)
+      this.extinguish(tg)
       return
     }
     // 怪物：坏目标，碰到掉一滴血
@@ -355,8 +327,8 @@ export class WhackAMoleGame implements GameInstance {
       p.combo = 0
       p.flash = 0.5
       this.ctx.audio.play('whack')
-      this.burst(player, px, py, '#ff4d5e', 14)
-      this.floats(player, px, py - VIEW_H * 0.08, '怪物！-1♥', '#ff4d5e', VIEW_H * 0.05)
+      this.ctx.fx.burst(px, py, '#ff4d5e', 14)
+      this.ctx.fx.float(px, py - VIEW_H * 0.08, '怪物！-1♥', '#ff4d5e', VIEW_H * 0.05)
       tg.state = 'down'
       return
     }
@@ -365,23 +337,23 @@ export class WhackAMoleGame implements GameInstance {
       if (tg.hits >= 2) {
         pts = 80
         tg.state = 'down'
-        this.burst(player, px, py, '#ff2d55', 10)
+        this.ctx.fx.burst(px, py, '#ff2d55', 10)
       } else {
         pts = 30
         this.ctx.audio.playThrottled('whack', 60)
-        this.burst(player, px, py, '#00e5ff', 6)
+        this.ctx.fx.burst(px, py, '#00e5ff', 6)
       }
     } else if (tg.kind === 'life') {
       pts = 30
       p.lives = Math.min(5, p.lives + 1)
       tg.state = 'down'
       this.ctx.audio.play('chime')
-      this.burst(player, px, py, '#39ff14', 10)
-      this.floats(player, px, py - VIEW_H * 0.08, '+1♥', '#39ff14', VIEW_H * 0.05)
+      this.ctx.fx.burst(px, py, '#39ff14', 10)
+      this.ctx.fx.float(px, py - VIEW_H * 0.08, '+1♥', '#39ff14', VIEW_H * 0.05)
     } else {
       pts = 50
       tg.state = 'down'
-      this.burst(player, px, py, '#00e5ff', 8)
+      this.ctx.fx.burst(px, py, '#00e5ff', 8)
     }
     p.combo = Math.min(MAX_COMBO, p.combo + 1)
     p.maxCombo = Math.max(p.maxCombo, p.combo)
@@ -389,38 +361,14 @@ export class WhackAMoleGame implements GameInstance {
     const actual = Math.round(pts * (1 + p.combo * 0.05))
     p.score += actual
     // 命中飘字 +N（含连击加成）
-    this.floats(player, px, py - VIEW_H * 0.1, `+${actual}`, '#ffe14d', VIEW_H * 0.06)
+    this.ctx.fx.float(px, py - VIEW_H * 0.1, `+${actual}`, '#ffe14d', VIEW_H * 0.06)
     // 连击里程碑奖励：每 5 连一次，大字提醒
     if (p.combo % COMBO_MILESTONE === 0) {
       p.score += COMBO_BONUS
-      this.floats(player, px, py - VIEW_H * 0.2, `连击×${p.combo}！+${COMBO_BONUS}`, '#ff9f1c', VIEW_H * 0.075)
+      this.ctx.fx.float(px, py - VIEW_H * 0.2, `连击×${p.combo}！+${COMBO_BONUS}`, '#ff9f1c', VIEW_H * 0.075)
       this.ctx.audio.play('chime')
     }
     if (tg.kind !== 'helmet' || tg.hits >= 2) this.ctx.audio.playThrottled('hit', 60)
-  }
-
-  /** 飘字 */
-  private floats(player: number, px: number, py: number, text: string, color: string, size: number): void {
-    const p = this.players[player]
-    if (!p) return
-    p.floats.push({ x: px, y: py, text, color, life: 1.0, max: 1.0, size })
-  }
-
-  private burst(player: number, px: number, py: number, color: string, n: number): void {
-    const p = this.players[player]
-    if (!p) return
-    for (let i = 0; i < n; i++) {
-      p.particles.push({
-        x: px,
-        y: py,
-        vx: (Math.random() - 0.5) * 260,
-        vy: -Math.random() * 220,
-        life: 0.5,
-        max: 0.5,
-        color,
-        size: 3 + Math.random() * 4,
-      })
-    }
   }
 
   /* ================= 布局 ================= */
@@ -441,6 +389,11 @@ export class WhackAMoleGame implements GameInstance {
       score: Math.round(p.score),
       hits: p.hits,
       maxCombo: p.maxCombo,
+      // 每游戏自定义统计（结算页通用展示 + 历史落库）
+      stats: [
+        { label: '击中', value: p.hits },
+        { label: '最高连击', value: p.maxCombo },
+      ],
     }))
     this.ctx.engine.endGame({ scores })
   }
@@ -464,33 +417,13 @@ export class WhackAMoleGame implements GameInstance {
       if (tg.state !== 'up') continue
       this.renderTarget(ctx, tg, w, h)
     }
-    // 每位玩家：粒子 / 飘字 / 扣血红闪（坐标全区；红闪按玩家侧显示）
+    // 每位玩家：扣血红闪（坐标全区；红闪按玩家侧显示）
     const pc = this.ctx.match.playerCount
     for (let i = 0; i < this.players.length; i++) {
       const p = this.players[i]
       const zone = this.playerZoneOf(i, pc)
       const zoneX = zone.x * w
       const zoneW = zone.w * w
-      for (const pt of p.particles) {
-        const a = clamp(pt.life / pt.max, 0, 1)
-        ctx.globalAlpha = a
-        ctx.fillStyle = pt.color
-        ctx.beginPath()
-        ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2)
-        ctx.fill()
-      }
-      ctx.textAlign = 'center'
-      for (const ft of p.floats) {
-        const a = clamp(ft.life / ft.max, 0, 1)
-        ctx.globalAlpha = a
-        ctx.font = `900 ${ft.size}px sans-serif`
-        ctx.fillStyle = ft.color
-        ctx.strokeStyle = 'rgba(0,0,0,0.65)'
-        ctx.lineWidth = Math.max(3, ft.size * 0.14)
-        ctx.strokeText(ft.text, ft.x, ft.y)
-        ctx.fillText(ft.text, ft.x, ft.y)
-      }
-      ctx.globalAlpha = 1
       if (p.flash > 0) {
         ctx.globalAlpha = clamp(p.flash, 0, 1) * 0.35
         ctx.fillStyle = '#ff2222'
@@ -498,6 +431,8 @@ export class WhackAMoleGame implements GameInstance {
         ctx.globalAlpha = 1
       }
     }
+    // 表现层：飘字/粒子（GameKit，全区坐标）
+    this.ctx.fx.render(ctx)
     this.renderHud(ctx, w, h)
   }
 
@@ -656,5 +591,8 @@ export const whackAMoleSpec = {
   icon: '🐭',
   desc: '手碰到地鼠得分，头盔打两次，别碰怪物和炸弹',
   maxPlayers: 2 as const,
+  genre: 'reaction' as const,
+  difficulty: 'easy' as const,
+  controls: '双手接触判定',
   create: (ctx: GameContext) => new WhackAMoleGame(ctx),
 }

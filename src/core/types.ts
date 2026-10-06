@@ -13,6 +13,8 @@ export interface Hand {
   visible: boolean
   /** 当前速度（归一化距离/秒），用于下压判定 */
   speedY: number
+  /** 水平速度（归一化距离/秒），供挥动方向类玩法（引擎转发层统一计算） */
+  speedX: number
 }
 
 /** 全局手势事件（体感与 Mock 统一协议） */
@@ -77,6 +79,8 @@ export interface PlayerScore {
   score: number
   hits: number
   maxCombo: number
+  /** 每游戏自定义统计（如打地鼠的"击中/最高连击"；结算页通用展示并落库） */
+  stats?: Array<{ label: string; value: number }>
 }
 
 /** 游戏给引擎返回的结算数据 */
@@ -95,6 +99,12 @@ export interface GameSpec {
   desc: string
   /** 支持的最大玩家数（平台上限 4 人） */
   maxPlayers: 1 | 2 | 3 | 4
+  /** 玩法类型（大厅展示/筛选用） */
+  genre?: 'arcade' | 'sport' | 'reaction' | 'shooting' | 'puzzle' | 'other'
+  /** 难度（大厅展示用） */
+  difficulty?: 'easy' | 'normal' | 'hard'
+  /** 体感操作方式说明（大厅展示用） */
+  controls?: string
   /** 该游戏使用的素材清单（构建时 import） */
   create(ctx: GameContext): GameInstance
 }
@@ -105,6 +115,8 @@ export interface GameContext {
   audio: AudioManager
   scores: ScoreStore
   match: MatchConfig
+  /** 通用玩法工具箱：粒子爆发 / 飘字 / 特效（引擎按局注入） */
+  fx: import('./gameKit').GameKit
 }
 
 export interface GameInstance {
@@ -112,6 +124,10 @@ export interface GameInstance {
   onEnter(): void
   /** 离开时调用（清理） */
   onExit(): void
+  /** 暂停（切后台/来电等，引擎在 visibilitychange 时调用；可选） */
+  pause?(): void
+  /** 恢复（回到前台；可选） */
+  resume?(): void
   update(dt: number): void
   render(ctx: CanvasRenderingContext2D, w: number, h: number): void
   /** 手势事件分发（tap/point） */

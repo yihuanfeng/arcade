@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import type { GameResult } from '../core/types'
 import type { ScoreStore } from '../core/ScoreStore'
 import type { GestureEngine } from '../core/GestureEngine'
@@ -24,13 +24,22 @@ const progress = ref(0)
 const cursorStyle = ref({ left: '-100px', top: '-100px', visible: false })
 let nav: ReturnType<typeof createGestureUiNav> | null = null
 
-/** 每玩家的历史最佳（挂载时取一次） */
+/** 每玩家的历史：最高分 / 总场次（每次结算重新读取，统一存储） */
 const bests = ref<number[]>([])
+const plays = ref<number[]>([])
+
+watch(
+  () => props.result,
+  (r) => {
+    if (r) {
+      bests.value = r.scores.map((s) => props.scores.load(props.gameId, s.player).best)
+      plays.value = r.scores.map((s) => props.scores.load(props.gameId, s.player).plays)
+    }
+  },
+  { immediate: true }
+)
 
 onMounted(() => {
-  if (props.result) {
-    bests.value = props.result.scores.map((s) => props.scores.load(props.gameId, s.player).best)
-  }
   // 全局 UI 交互（hold-to-confirm）：光标停在按钮上加载满才触发
   nav = createGestureUiNav({
     gesture: props.gesture,
@@ -62,15 +71,15 @@ onUnmounted(() => {
           v-for="(s, i) in result.scores"
           :key="i"
           class="row"
-          :class="{ p1: i === 0, p2: i === 1 }"
+          :class="`p${i + 1}`"
         >
           <div class="tag">玩家 {{ i + 1 }}</div>
           <div class="score mono">{{ s.score }}</div>
           <div class="meta">
             <span v-if="s.score >= bests[i] && s.score > 0" class="record">新纪录！</span>
-            <span>最高 {{ bests[i] }}</span>
-            <span>击中 {{ s.hits }} 次</span>
-            <span>连击最高 {{ s.maxCombo }}</span>
+            <span>历史最高 {{ bests[i] }}</span>
+            <span>共 {{ plays[i] }} 场</span>
+            <span v-for="st in s.stats ?? []" :key="st.label">{{ st.label }} {{ st.value }}</span>
           </div>
         </div>
       </div>
@@ -115,11 +124,19 @@ onUnmounted(() => {
 }
 
 .row.p1 {
-  border-left: 8px solid var(--ok);
+  border-left: 8px solid var(--p1);
 }
 
 .row.p2 {
-  border-left: 8px solid var(--accent2);
+  border-left: 8px solid var(--p2);
+}
+
+.row.p3 {
+  border-left: 8px solid var(--p3);
+}
+
+.row.p4 {
+  border-left: 8px solid var(--p4);
 }
 
 .row .tag {
@@ -133,8 +150,10 @@ onUnmounted(() => {
   line-height: 1.1;
 }
 
-.row.p1 .score { color: var(--ok); }
-.row.p2 .score { color: var(--accent2); }
+.row.p1 .score { color: var(--p1); }
+.row.p2 .score { color: var(--p2); }
+.row.p3 .score { color: var(--p3); }
+.row.p4 .score { color: var(--p4); }
 
 .row .meta {
   font-size: var(--fs-note);

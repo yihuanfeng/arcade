@@ -1,16 +1,18 @@
 /* ============ GameEngine：游戏引擎核心 ============
    职责：
    1. 游戏注册表（Games.register）：游戏中心从这取卡片数据
-   2. 对局状态机：LOBBY → PLAYING → OVER（结算）→ 再来一局/返回
+   2. 对局状态机：LOBBY → READY → PLAYING → OVER（结算）→ 再来一局/返回；切后台 → PAUSED
    3. 主循环：固定逻辑分辨率 1280×720，rAF 驱动 update/render
-   4. 手势事件路由：gesture 事件 → 当前游戏 onGesture
-   5. 结果落库：GameResult → ScoreStore.submit，并对外广播结算数据
+   4. 手势事件路由：gesture 事件 → 当前游戏 onGesture（视口归一化 → 画布归一化，toCanvas 统一封装）
+   5. 结果落库：GameResult → ScoreStore.submit（统一存储），并对外广播结算数据
+   6. 通用表现工具箱：每局注入 GameKit（fx），换局自动清空
    UI（App.vue）只订阅状态与结果，游戏模块只实现 GameInstance 接口。 */
 
 import type { GameContext, GameInstance, GameResult, GameSpec, GestureEvent, Hand, MatchConfig, Rect } from './types'
 import type { GestureEngine } from './GestureEngine'
 import type { AudioManager } from './AudioManager'
 import type { ScoreStore } from './ScoreStore'
+import { GameKit } from './gameKit'
 
 export const VIEW_W = 1280
 export const VIEW_H = 720
@@ -18,7 +20,7 @@ export const VIEW_H = 720
 /** 站位确认时长（秒）：所有玩家姿态（手腕）可见持续该时长后游戏开始 */
 export const READY_SECONDS = 3
 
-export type EngineState = 'lobby' | 'ready' | 'playing' | 'over'
+export type EngineState = 'lobby' | 'ready' | 'playing' | 'paused' | 'over'
 
 export interface EngineEvent {
   state: EngineState
@@ -42,6 +44,8 @@ export class GameEngine {
   private raf = 0
   private lastT = 0
   private stateListeners = new Set<(e: EngineEvent) => void>()
+  /** 通用表现工具箱（每局注入 GameContext.fx，换局自动清空） */
+  private fx = new GameKit()
 
   constructor(
     public readonly gesture: GestureEngine,
@@ -70,22 +74,51 @@ export class GameEngine {
     this.ctx2d = canvas.getContext('2d')
     this.lastT = performance.now()
     this.raf = requestAnimationFrame(this.loop)
+    document.addEventListener('visibilitychange', this.onVisibility)
   }
 
   detach(): void {
     cancelAnimationFrame(this.raf)
+    document.removeEventListener('visibilitychange', this.onVisibility)
     this.ctx2d = null
+  }
+
+  /** 切后台暂停对局 / 回前台恢复（投屏、来电等场景），调游戏的 pause/resume */
+  private onVisibility = (): void => {
+    if (document.hidden && this.state === 'playing') {
+      this.state = 'paused'
+      this.currentGame?.pause?.()
+      this.emit({ state: 'paused', gameId: this.currentSpec?.id })
+    } else if (!document.hidden && this.state === 'paused') {
+      this.state = 'playing'
+      this.currentGame?.resume?.()
+      this.emit({ state: 'playing', gameId: this.currentSpec?.id })
+    }
+  }
+
+  /** 视口归一化坐标 → 画布逻辑坐标（1280×720 空间）。
+       画布等比缩放居中时 rect 有偏移，x/y 都必须换算，不能假设视口 = 画布。 */
+  toCanvas(hx: number, hy: number): { x: number; y: number } {
+    const canvas = this.canvas
+    if (!canvas) return { x: hx * VIEW_W, y: hy * VIEW_H }
+    const rect = canvas.getBoundingClientRect()
+    if (rect.width === 0 || rect.height === 0) return { x: hx * VIEW_W, y: hy * VIEW_H }
+    const px = hx * window.innerWidth - rect.left
+    const py = hy * window.innerHeight - rect.top
+    return { x: (px / rect.width) * VIEW_W, y: (py / rect.height) * VIEW_H }
   }
 
   /** 开始一局：创建游戏实例并进入站位确认（ready），姿态可见满 3 秒后自动开始 */
   startGame(spec: GameSpec, match: MatchConfig): void {
     if (this.currentGame) {
-      if (this.state === 'playing') this.currentGame.onExit()
+      if (this.state === 'playing' || this.state === 'paused') this.currentGame.onExit()
       this.currentGame = null
     }
     this.currentSpec = spec
     this.match = match
-    const ctx: GameContext = { engine: this, gesture: this.gesture, audio: this.audio, scores: this.scores, match }
+    this.audio.setNamespace(spec.id)
+    this.fx.clear()
+    const ctx: GameContext = { engine: this, gesture: this.gesture, audio: this.audio, scores: this.scores, match, fx: this.fx }
     this.currentGame = spec.create(ctx)
     this.state = 'ready'
     this.readyTime = 0
@@ -112,10 +145,11 @@ export class GameEngine {
   /** 返回大厅 */
   backToLobby(): void {
     if (this.currentGame) {
-      if (this.state === 'playing') this.currentGame.onExit()
+      if (this.state === 'playing' || this.state === 'paused') this.currentGame.onExit()
       this.currentGame = null
     }
     this.currentSpec = null
+    this.audio.setNamespace('')
     this.state = 'lobby'
     this.readyTime = 0
     this.emit({ state: 'lobby' })
@@ -151,18 +185,17 @@ export class GameEngine {
 
   /** 手势事件路由给当前游戏。
        Provider 输出的手坐标是「视口归一化」；游戏逻辑使用「画布归一化」。
-       画布等比缩放后两者不一致：x 全区直通（与 provider 一致，无需转换），
-       y 需要从视口高度换算到画布显示高度。 */
+       toCanvas 统一把两者换算（处理画布等比缩放居中时的 x/y 偏移）。 */
   routeGesture(e: GestureEvent): void {
     if (this.state !== 'playing' || !this.currentGame || !this.canvas) return
     const hands: Hand[] = []
     if (e.type === 'point' && e.hands.length > 0) hands.push(...e.hands)
     if (e.type === 'tap' && e.hand) hands.push(e.hand)
     if (hands.length > 0) {
-      const rect = this.canvas.getBoundingClientRect()
-      const vh = window.innerHeight
       for (const h of hands) {
-        h.y = Math.min(1, Math.max(0, (h.y * vh - rect.top) / rect.height))
+        const c = this.toCanvas(h.x, h.y)
+        h.x = Math.min(1, Math.max(0, c.x / VIEW_W))
+        h.y = Math.min(1, Math.max(0, c.y / VIEW_H))
       }
     }
     this.currentGame.onGesture(e)
