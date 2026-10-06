@@ -83,7 +83,7 @@ function drawPreview() {
         ctx.stroke()
       }
     }
-    drawPoseFrames(ctx, frames.value, w, h, { lineWidth: 5, drawPoints: true })
+    drawPoseFrames(ctx, frames.value, w, h, { lineWidth: 5, drawPoints: true, filterVisible: true })
   }
   raf = requestAnimationFrame(drawPreview)
 }

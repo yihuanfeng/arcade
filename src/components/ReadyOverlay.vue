@@ -68,7 +68,7 @@ function draw() {
       ctx.strokeRect(bx, by, bw, bh)
       ctx.restore()
     }
-    drawPoseFrames(ctx, latestFrames, w, h)
+    drawPoseFrames(ctx, latestFrames, w, h, { filterVisible: true })
   }
   progress.value = props.engine.readyTime / READY_SECONDS
   raf = requestAnimationFrame(draw)

@@ -24,7 +24,7 @@ function draw() {
     // 统一外观：半透明深色底 + 霓虹骨架（摄像头与 Mock 不做区别，无边框）
     ctx.fillStyle = 'rgba(6,10,14,0.45)'
     ctx.fillRect(0, 0, W, H)
-    drawPoseFrames(ctx, frames, W, H, { lineWidth: 3, drawPoints: true })
+    drawPoseFrames(ctx, frames, W, H, { lineWidth: 3, drawPoints: true, filterVisible: true })
   }
   raf = requestAnimationFrame(draw)
 }
