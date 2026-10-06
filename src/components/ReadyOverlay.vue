@@ -5,6 +5,7 @@ import { READY_SECONDS } from '../core/GameEngine'
 import type { GestureEngine } from '../core/GestureEngine'
 import type { PoseFrame } from '../core/types'
 import { drawPoseFrames } from '../core/poseRender'
+import { createGestureUiNav } from '../core/gestureUi'
 
 const props = defineProps<{
   engine: GameEngine
@@ -18,9 +19,13 @@ const emit = defineEmits<{
 const progress = ref(0)
 const playersOk = ref<boolean[]>([])
 const previewRef = ref<HTMLCanvasElement | null>(null)
+const cursorStyle = ref({ left: '-100px', top: '-100px', visible: false })
+const cursorOn = ref(false)
+const cursorProgress = ref(0)
 let raf = 0
 let offPose: (() => void) | null = null
 let latestFrames: PoseFrame[] = []
+let nav: ReturnType<typeof createGestureUiNav> | null = null
 
 function draw() {
   const cv = previewRef.value
@@ -78,12 +83,22 @@ onMounted(() => {
   offPose = props.gesture.onPose((frames) => {
     latestFrames = frames
   })
+  // 体感导航：自动收集页面可见按钮（返回大厅），命中满进度即触发；无 key 兜底 el.click()
+  nav = createGestureUiNav({
+    gesture: props.gesture,
+    onStateChange: (s) => {
+      cursorStyle.value = { left: `${s.x}px`, top: `${s.y}px`, visible: s.visible }
+      cursorOn.value = s.key !== ''
+      cursorProgress.value = s.progress
+    },
+  })
   raf = requestAnimationFrame(draw)
 })
 
 onUnmounted(() => {
   cancelAnimationFrame(raf)
   offPose?.()
+  nav?.stop()
 })
 </script>
 
@@ -106,7 +121,25 @@ onUnmounted(() => {
       </div>
       <div class="tip">识别到身体后保持 3 秒，游戏自动开始</div>
       <canvas ref="previewRef" class="preview"></canvas>
-      <button class="btn ghost" @click="emit('cancel')">返回大厅</button>
+      <button class="btn ghost" :class="{ focus: cursorOn }" @click="emit('cancel')">返回大厅</button>
+    </div>
+
+    <!-- 手势光标：圆形进度条，命中返回按钮后加载满才触发 -->
+    <div
+      id="ready-cursor"
+      :class="{ active: cursorOn }"
+      :style="{ left: cursorStyle.left, top: cursorStyle.top, visibility: cursorStyle.visible ? 'visible' : 'hidden' }"
+    >
+      <svg class="cursor-ring" viewBox="0 0 100 100" :style="{ opacity: cursorOn ? 1 : 0.35 }">
+        <circle class="ring-bg" cx="50" cy="50" r="44"></circle>
+        <circle
+          class="ring-fill"
+          cx="50"
+          cy="50"
+          r="44"
+          :stroke-dasharray="`${(cursorProgress * 276.5).toFixed(1)} 276.5`"
+        ></circle>
+      </svg>
     </div>
   </div>
 </template>
@@ -185,5 +218,37 @@ onUnmounted(() => {
 
 #ready .btn {
   margin-top: 2px;
+}
+
+#ready .btn.focus {
+  outline: 4px solid var(--accent2);
+  outline-offset: 3px;
+  transform: scale(1.04);
+}
+
+#ready-cursor {
+  position: fixed;
+  width: 110px;
+  height: 110px;
+  margin: -55px 0 0 -55px;
+  border-radius: 999px;
+  z-index: 90;
+  pointer-events: none;
+}
+#ready-cursor .cursor-ring {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+#ready-cursor .ring-bg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 7;
+}
+#ready-cursor .ring-fill {
+  fill: none;
+  stroke: var(--accent2);
+  stroke-width: 7;
+  stroke-linecap: round;
 }
 </style>

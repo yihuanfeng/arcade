@@ -23,12 +23,13 @@ export interface GestureUiState {
 
 export interface GestureUiNavOptions {
   gesture: GestureEngine
-  /** 实时返回可命中的目标元素（调用方按层级排序：浮层按钮在前、底层卡片在后） */
-  targets: () => HTMLElement[]
-  /** 目标元素 → 激活 key */
-  keyOf: (el: HTMLElement) => string
-  /** 进度填满触发（hold-to-confirm 点击） */
-  onActivate: (key: string) => void
+  /** 实时返回可命中的目标元素；缺省 = 自动收集页面所有可见可交互元素（按 z-index 降序，浮层优先） */
+  targets?: () => HTMLElement[]
+  /** 目标元素 → 激活 key；缺省 = dataset.act ?? dataset.gid */
+  keyOf?: (el: HTMLElement) => string
+  /** 进度填满触发（hold-to-confirm 点击）；可选。命中元素无 key 时自动触发 el.click() 兜底；
+      有 key 但未提供 onActivate 时同样兜底 el.click() */
+  onActivate?: (key: string, el?: HTMLElement) => void
   /** 每帧状态变化（组件用于绑定光标样式/进度环） */
   onStateChange: (s: GestureUiState) => void
   holdSeconds?: number
@@ -39,9 +40,28 @@ export interface GestureUiNav {
   stop: () => void
 }
 
+/** 缺省目标收集器：页面所有可见可交互元素，按 z-index 降序（浮层按钮优先于底层卡片） */
+function defaultTargets(): HTMLElement[] {
+  const els = Array.from(document.querySelectorAll<HTMLElement>('button, [data-gid], [role="button"]'))
+  return els
+    .filter((el) => {
+      if ((el as HTMLButtonElement).disabled) return false
+      const cs = getComputedStyle(el)
+      if (cs.display === 'none' || cs.visibility === 'hidden') return false
+      return el.getClientRects().length > 0
+    })
+    .sort((a, b) => {
+      const za = Number.parseInt(getComputedStyle(a).zIndex) || 0
+      const zb = Number.parseInt(getComputedStyle(b).zIndex) || 0
+      return zb - za
+    })
+}
+
 /** 创建全局 UI 手势导航（组件 onMounted 创建、onUnmounted stop） */
 export function createGestureUiNav(opts: GestureUiNavOptions): GestureUiNav {
   const holdSeconds = opts.holdSeconds ?? UI_HOLD_SECONDS
+  const targetsFn = opts.targets ?? defaultTargets
+  const keyOf = opts.keyOf ?? ((el: HTMLElement) => el.dataset.act ?? el.dataset.gid ?? '')
   const state: GestureUiState = { x: -100, y: -100, visible: false, key: '', progress: 0 }
   let latestHand = { x: 0.5, y: 0.5, visible: false, player: 0 }
   let raf = 0
@@ -58,7 +78,7 @@ export function createGestureUiNav(opts: GestureUiNavOptions): GestureUiNav {
   })
 
   function hitTest(x: number, y: number): HTMLElement | null {
-    for (const el of opts.targets()) {
+    for (const el of targetsFn()) {
       if (!el) continue
       const r = el.getBoundingClientRect()
       if (x >= r.left - 20 && x <= r.right + 20 && y >= r.top - 20 && y <= r.bottom + 20) {
@@ -78,9 +98,9 @@ export function createGestureUiNav(opts: GestureUiNavOptions): GestureUiNav {
       state.y = h.y * window.innerHeight
       state.visible = true
       const el = hitTest(state.x, state.y)
-      const key = el ? opts.keyOf(el) : ''
+      const key = el ? keyOf(el) : ''
       state.key = key
-      if (key) {
+      if (el) {
         const now = performance.now()
         if (key !== activeKey) {
           activeKey = key
@@ -90,7 +110,9 @@ export function createGestureUiNav(opts: GestureUiNavOptions): GestureUiNav {
         if (now - lastActivate > ACTIVATE_COOLDOWN) {
           progress = Math.min(1, progress + dt / holdSeconds)
           if (progress >= 1) {
-            opts.onActivate(key)
+            // 有 key 且页面提供分发回调则交给页面；否则兜底触发原生点击（任何按钮体感命中即可用）
+            if (key && opts.onActivate) opts.onActivate(key, el)
+            else el.click()
             progress = 0
             lastActivate = now
           }

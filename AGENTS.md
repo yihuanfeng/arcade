@@ -167,6 +167,8 @@ GameInstance {
 
 15. **素材按原比例绘制**：drawImage 时保持素材原始宽高比（历史：mole-eyes 157:45 被画成 1.67:1 压扁、helmet 367:265 被画成 2:1，用户反馈"眼睛太小/偏"）；目标消失要播放下落动画（down 保留 0.28s 缩回洞里），不要瞬间消失
 
+16. **UI 按钮体感点击**：gestureUi 缺省自动收集页面所有可见 `button/[data-gid]/[role=button]`（按 z-index 降序，浮层优先）；命中元素无 `data-act`/`data-gid` 时自动 `el.click()` 兜底——**新页面任何按钮不标注也能体感点**。页面若要高亮/分发语义，给按钮加 `data-act` + onActivate 处理 key（如大厅人数 chips 的 `p1..p4`）。体感验证注意：进站位页后要在 3s 站位窗口内操作，且 click_xy 坐标按真实 `innerWidth/innerHeight` 换算
+
 ## 六、验证方法（交付前必做）
 
 

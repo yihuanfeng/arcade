@@ -53,6 +53,10 @@ function execute(key: string) {
     emit('open-test')
     return
   }
+  if (/^p[1-4]$/.test(key)) {
+    setPlayers(Number(key.slice(1)) as 1 | 2 | 3 | 4)
+    return
+  }
   if (key === 'close') {
     settingsOpen.value = false
     return
@@ -99,7 +103,8 @@ onUnmounted(() => {
           v-for="n in [1, 2, 3, 4]"
           :key="n"
           class="chip"
-          :class="{ on: playerCount === n }"
+          :class="{ on: playerCount === n, focus: focusKey === 'p' + n }"
+          :data-act="'p' + n"
           @click="setPlayers(n as 1 | 2 | 3 | 4)"
         >{{ n }} 人</button>
       </div>
@@ -244,6 +249,12 @@ onUnmounted(() => {
 .players .chip.on {
   border-color: var(--accent2);
   background: rgba(255, 180, 84, 0.2);
+}
+
+.players .chip.focus {
+  outline: 4px solid var(--accent2);
+  outline-offset: 3px;
+  transform: scale(1.04);
 }
 
 /* 游戏网格：3 列，一页可排 3×3 = 9 个游戏；1 个时居中 */
