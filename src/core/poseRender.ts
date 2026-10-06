@@ -14,8 +14,8 @@ export interface PoseRenderOptions {
   filterVisible?: boolean
 }
 
-/** 玩家霓虹色表：P1 蓝 / P2 红 / P3 紫 / P4 绿，靠颜色分辨人 */
-const DEFAULT_COLORS = ['#00e5ff', '#ff2d55', '#bd00ff', '#39ff14']
+/** 玩家霓虹色表：P1 深霓虹蓝 / P2 红 / P3 紫 / P4 绿，靠颜色分辨人 */
+const DEFAULT_COLORS = ['#00a8e8', '#ff2d55', '#bd00ff', '#39ff14']
 
 export { DEFAULT_COLORS }
 
