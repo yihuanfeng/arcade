@@ -31,56 +31,66 @@ let offEvent: (() => void) | null = null
 let offPose: (() => void) | null = null
 let nav: ReturnType<typeof createGestureUiNav> | null = null
 
-/** 预览画布尺寸（固定逻辑分辨率） */
-const PW = 640
-const PH = 480
-
 /** 坐标格式化：非有限数显示 —（MediaPipe 低可见度时可能输出 NaN） */
 function fmt(v: number): string {
   return Number.isFinite(v) ? v.toFixed(2) : '—'
 }
 
+/** 画布像素尺寸跟随窗口（全屏画面） */
+function resizeCanvas() {
+  const cv = previewRef.value
+  if (cv) {
+    cv.width = window.innerWidth
+    cv.height = window.innerHeight
+  }
+}
+
 function drawPreview() {
   const cv = previewRef.value
   if (cv) {
+    const w = cv.width
+    const h = cv.height
     const ctx = cv.getContext('2d')!
-    ctx.clearRect(0, 0, PW, PH)
+    ctx.clearRect(0, 0, w, h)
     const video = props.gesture.previewVideo
     if (video && video.readyState >= 2 && video.videoWidth > 0) {
+      // 摄像头画面：照镜子 + cover 铺满全屏（保持比例裁切，无黑边）
       ctx.save()
-      ctx.scale(-1, 1) // 照镜子
+      ctx.scale(-1, 1)
       const vw = video.videoWidth
       const vh = video.videoHeight
-      const scale = Math.max(PW / vw, PH / vh)
+      const scale = Math.max(w / vw, h / vh)
       const dw = vw * scale
       const dh = vh * scale
-      ctx.drawImage(video, -dw + (PW - dw) / 2, (PH - dh) / 2, dw, dh)
+      ctx.drawImage(video, -dw + (w - dw) / 2, (h - dh) / 2, dw, dh)
       ctx.restore()
     } else {
+      // Mock：深色底 + 霓虹网格
       ctx.fillStyle = '#0a1016'
-      ctx.fillRect(0, 0, PW, PH)
-      // Mock 提示网格
-      ctx.strokeStyle = 'rgba(255,255,255,0.10)'
+      ctx.fillRect(0, 0, w, h)
+      ctx.strokeStyle = 'rgba(0,229,255,0.10)'
       ctx.lineWidth = 1
-      for (let gx = 0; gx <= 4; gx++) {
+      for (let gx = 0; gx <= 6; gx++) {
         ctx.beginPath()
-        ctx.moveTo((gx / 4) * PW, 0)
-        ctx.lineTo((gx / 4) * PW, PH)
+        ctx.moveTo((gx / 6) * w, 0)
+        ctx.lineTo((gx / 6) * w, h)
         ctx.stroke()
       }
-      for (let gy = 0; gy <= 3; gy++) {
+      for (let gy = 0; gy <= 4; gy++) {
         ctx.beginPath()
-        ctx.moveTo(0, (gy / 3) * PH)
-        ctx.lineTo(PW, (gy / 3) * PH)
+        ctx.moveTo(0, (gy / 4) * h)
+        ctx.lineTo(w, (gy / 4) * h)
         ctx.stroke()
       }
     }
-    drawPoseFrames(ctx, frames.value, PW, PH, { lineWidth: 5, drawPoints: true })
+    drawPoseFrames(ctx, frames.value, w, h, { lineWidth: 5, drawPoints: true })
   }
   raf = requestAnimationFrame(drawPreview)
 }
 
 onMounted(() => {
+  resizeCanvas()
+  window.addEventListener('resize', resizeCanvas)
   offEvent = props.gesture.onEvent((e: GestureEvent) => {
     if (e.type === 'point' && e.hands.length > 0) {
       handInfo.value = e.hands.map((h) => ({ player: h.player, side: h.side, x: h.x, y: h.y, visible: h.visible }))
@@ -111,6 +121,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   cancelAnimationFrame(raf)
+  window.removeEventListener('resize', resizeCanvas)
   offEvent?.()
   offPose?.()
   nav?.stop()
@@ -119,24 +130,24 @@ onUnmounted(() => {
 
 <template>
   <div class="test-page" id="gesture-test">
-    <h1>体感测试</h1>
-    <div class="src-line">
-      <span>输入源：{{ inputSource === 'camera' ? '📷 摄像头' : inputSource === 'mock' ? '🖱 Mock' : '自动' }}</span>
-      <div class="src-btns">
-        <button class="mini" :class="{ on: inputSource === 'auto' }" @click="emit('input-source', 'auto')">自动</button>
-        <button class="mini" :class="{ on: inputSource === 'camera' }" @click="emit('input-source', 'camera')">摄像头</button>
-        <button class="mini" :class="{ on: inputSource === 'mock' }" @click="emit('input-source', 'mock')">模拟</button>
-      </div>
-    </div>
+    <!-- 全屏画面：摄像头照镜子 / Mock 网格 + 骨架 -->
+    <canvas ref="previewRef" class="preview-full"></canvas>
 
-    <div class="grid">
-      <div class="stage-box">
-        <canvas ref="previewRef" :width="PW" :height="PH"></canvas>
-        <div class="hint">
-          {{ props.gesture.previewVideo ? '摄像头画面 + 骨架（照镜子）' : 'Mock 双手：鼠标=右手 · WASD=左手' }}
+    <!-- 信息浮层（覆盖在画面上） -->
+    <div class="hud">
+      <!-- 顶部：输入源切换 -->
+      <div class="topbar">
+        <span class="src-label">
+          输入源：{{ inputSource === 'camera' ? '📷 摄像头' : inputSource === 'mock' ? '🖱 Mock' : '自动' }}
+        </span>
+        <div class="src-btns">
+          <button class="mini" :class="{ on: inputSource === 'auto' }" @click="emit('input-source', 'auto')">自动</button>
+          <button class="mini" :class="{ on: inputSource === 'camera' }" @click="emit('input-source', 'camera')">摄像头</button>
+          <button class="mini" :class="{ on: inputSource === 'mock' }" @click="emit('input-source', 'mock')">模拟</button>
         </div>
       </div>
 
+      <!-- 左上：识别信息面板 -->
       <div class="info-panel">
         <div class="row">
           <span class="k">识别</span>
@@ -163,14 +174,17 @@ onUnmounted(() => {
           <span class="v">站在镜头前、全身入画；挥手应出现骨架跟随</span>
         </div>
       </div>
-    </div>
 
-    <button
-      ref="backBtn"
-      class="btn ghost back"
-      :class="{ focus: focusOnBack }"
-      @click="emit('back')"
-    >返回大厅</button>
+      <!-- 左下：返回大厅 -->
+      <div class="bottom">
+        <button
+          ref="backBtn"
+          class="btn ghost back"
+          :class="{ focus: focusOnBack }"
+          @click="emit('back')"
+        >返回大厅</button>
+      </div>
+    </div>
 
     <!-- 手势光标：圆形进度条，加载满才触发返回 -->
     <div
@@ -197,29 +211,51 @@ onUnmounted(() => {
   position: fixed;
   inset: 0;
   z-index: 40;
-  background: radial-gradient(1200px 600px at 50% -10%, #14222e 0%, #0a1118 55%, #060a0e 100%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  /* 体感页面禁止滚动：所有内容压缩进一屏 */
+  background: #060a0e;
   overflow: hidden;
-  padding: clamp(12px, 2vh, 22px) clamp(16px, 3vw, 48px);
-  justify-content: flex-start;
 }
 
-.test-page h1 {
-  font-size: var(--fs-title);
-  color: var(--fg);
-  margin-bottom: 4px;
+/* 全屏画面 */
+.preview-full {
+  position: absolute;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+  background: #060a0e;
 }
 
-.src-line {
+/* 信息浮层：只读区域不挡手势，按钮区域可交互 */
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hud button {
+  pointer-events: auto;
+}
+
+/* 顶部：输入源 */
+.topbar {
+  position: absolute;
+  top: clamp(10px, 1.5vh, 18px);
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 14px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgba(10, 16, 22, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(6px);
+}
+
+.src-label {
   color: var(--sub);
   font-size: var(--fs-note);
-  margin-bottom: clamp(6px, 1.2vh, 12px);
+  white-space: nowrap;
 }
 
 .src-btns {
@@ -232,7 +268,7 @@ onUnmounted(() => {
   padding: 6px 14px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--sub);
   cursor: pointer;
 }
@@ -240,62 +276,30 @@ onUnmounted(() => {
 .mini.on {
   border-color: var(--accent);
   color: var(--fg);
-  background: rgba(93, 138, 233, 0.18);
+  background: rgba(93, 138, 233, 0.22);
 }
 
-.grid {
-  display: flex;
-  gap: clamp(14px, 2.5vw, 28px);
-  /* 不换行：画布与信息面板始终并排，避免撑高 */
-  flex-wrap: nowrap;
-  align-items: stretch;
-  justify-content: center;
-  width: 100%;
-  max-width: 1080px;
-  min-height: 0;
-}
-
-.stage-box {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.stage-box canvas {
-  display: block;
-  /* 高度受视口约束（留出标题/按钮空间），宽度按 4:3 自适应 */
-  height: min(calc(100vh - 250px), 470px);
-  aspect-ratio: 4 / 3;
-  border-radius: 14px;
-  background: #0a1016;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.stage-box .hint {
-  font-size: var(--fs-note);
-  color: var(--sub);
-  text-align: center;
-  margin-top: 6px;
-}
-
+/* 左上：识别信息面板（紧凑、半透明，不挡画面主体） */
 .info-panel {
-  flex: 1;
-  min-width: 240px;
-  max-width: 400px;
-  background: rgba(255, 255, 255, 0.045);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  position: absolute;
+  left: clamp(10px, 1.5vw, 20px);
+  top: clamp(56px, 8vh, 88px);
+  width: min(460px, 64vw);
+  background: rgba(10, 16, 22, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 14px;
-  padding: clamp(10px, 1.5vw, 16px);
+  padding: 10px 16px;
+  backdrop-filter: blur(6px);
 }
 
 .info-panel .row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
-  padding: 5px 0;
-  border-bottom: 1px dashed rgba(255, 255, 255, 0.09);
-  font-size: var(--fs-sub);
+  gap: 12px;
+  padding: 4px 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+  font-size: var(--fs-note);
 }
 
 .info-panel .row:last-child {
@@ -304,10 +308,12 @@ onUnmounted(() => {
 
 .k {
   color: var(--sub);
+  white-space: nowrap;
 }
 
 .v {
   color: var(--fg);
+  text-align: right;
 }
 
 .v.ok {
@@ -316,11 +322,17 @@ onUnmounted(() => {
 
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.92em;
+}
+
+/* 左下：返回大厅 */
+.bottom {
+  position: absolute;
+  left: clamp(10px, 1.5vw, 20px);
+  bottom: clamp(12px, 2vh, 24px);
 }
 
 .back {
-  margin-top: clamp(8px, 1.5vh, 16px);
+  margin: 0;
 }
 
 #test-cursor {
