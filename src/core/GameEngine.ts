@@ -171,10 +171,11 @@ export class GameEngine {
 
 /* ---------- 工具：坐标转换（手坐标全区直通：provider 输出即视口归一化） ---------- */
 
-/** 玩家显示区（仅用于 HUD/红闪等显示布局；手光标不再分区映射） */
+/** 玩家显示区（仅用于 HUD/红闪等显示布局；手光标不再分区映射，按人数 N 等分） */
 export function playerZone(player: number, playerCount: number): Rect {
   if (playerCount === 1) return { x: 0, y: 0, w: 1, h: 1 }
-  return player === 0 ? { x: 0, y: 0, w: 0.5, h: 1 } : { x: 0.5, y: 0, w: 0.5, h: 1 }
+  const seg = 1 / playerCount
+  return { x: player * seg, y: 0, w: seg, h: 1 }
 }
 
 /** 手归一化坐标 → 画布像素坐标（全区直通：任何玩家手坐标=实际位置） */

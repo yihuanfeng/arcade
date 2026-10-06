@@ -503,7 +503,9 @@ export class WhackAMoleGame implements GameInstance {
 
   private playerZoneOf(player: number, pc: number) {
     if (pc === 1) return { x: 0, w: 1 }
-    return player === 0 ? { x: 0, w: 0.5 } : { x: 0.5, w: 0.5 }
+    // 显示区按人数 N 等分（仅用于红闪/飘字归属，坐标仍是全区直通）
+    const seg = 1 / pc
+    return { x: player * seg, w: seg }
   }
 
   /** 全区洞（椭圆，位于场地底部，所有玩家共用） */
@@ -653,6 +655,6 @@ export const whackAMoleSpec = {
   name: '打地鼠',
   icon: '🐭',
   desc: '手碰到地鼠得分，头盔打两次，别碰怪物和炸弹',
-  maxPlayers: 2 as const,
+  maxPlayers: 4 as const,
   create: (ctx: GameContext) => new WhackAMoleGame(ctx),
 }

@@ -22,7 +22,7 @@ const backProgress = ref(0)
 const cursorStyle = ref({ left: '-100px', top: '-100px', visible: false })
 const frames = ref<PoseFrame[]>([])
 const handInfo = ref<{ player: number; side: 'left' | 'right'; x: number; y: number; visible: boolean }[]>([])
-const taps = ref<number[]>([0, 0])
+const taps = ref<number[]>([0, 0, 0, 0])
 const tapTotal = ref(0)
 const lastTapInfo = ref('—')
 
@@ -152,7 +152,7 @@ onUnmounted(() => {
         </div>
         <div class="row">
           <span class="k">下压(tap)</span>
-          <span class="v mono">{{ taps[0] }} / {{ taps[1] }}</span>
+          <span class="v mono">P1 {{ taps[0] }} · P2 {{ taps[1] }} · P3 {{ taps[2] }} · P4 {{ taps[3] }}</span>
         </div>
         <div class="row">
           <span class="k">最近</span>

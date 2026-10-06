@@ -80,7 +80,7 @@ onUnmounted(() => {
           class="player"
           :class="{ ok }"
         >
-          {{ ok ? '✓' : '…' }} 玩家 {{ i + 1 }}
+          <span class="mark">{{ ok ? '✓' : '○' }}</span> 玩家 {{ i + 1 }}
         </div>
       </div>
       <div class="progress">
@@ -107,8 +107,9 @@ onUnmounted(() => {
 
 .players {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
-  gap: 24px;
+  gap: 12px 24px;
   margin: 8px 0;
 }
 
@@ -118,6 +119,13 @@ onUnmounted(() => {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.06);
   color: var(--sub);
+  white-space: nowrap;
+}
+
+.player .mark {
+  display: inline-block;
+  width: 1.2em;
+  text-align: center;
 }
 
 .player.ok {

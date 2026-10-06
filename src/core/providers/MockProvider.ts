@@ -1,8 +1,9 @@
 /* ============ Mock 体感 Provider（电脑开发测试用） ============
-   无需摄像头即可完整模拟体感（每个玩家两只手）：
-   - 鼠标移动 → P1 右手；WASD → P1 左手
-   - 方向键 → P2 右手（双人时）；IJKL → P2 左手
-   - 空格 / 回车 → 下压(tap) 备用（游戏以接触即打为主）
+   无需摄像头即可完整模拟体感（每个玩家两只手，最多 4 人）：
+   - 鼠标移动 → P1 右手；WASD → P1 左手；空格 → P1 下压
+   - 方向键 → P2 右手；IJKL → P2 左手；回车 → P2 下压（单人时归 P1）
+   - 数字行 4/6/8/2 → P3 右手，1/3/5/0 → P3 左手；数字 9 → P3 下压
+   - 小键盘 4/6/8/2 → P4 右手，1/3/5/0 → P4 左手；小键盘 9 → P4 下压
    - 画面上叠加显示虚拟手光标 + 按键提示，方便开发联调
    输出与真机 MediaPipeProvider 完全一致的手势事件，业务层不感知差异。 */
 
@@ -15,13 +16,19 @@ export class MockProvider implements PoseProvider {
   private playerCount = 1
   private listeners = new Set<(e: GestureEvent) => void>()
   private poseListeners = new Set<(frames: PoseFrame[]) => void>()
-  /** 每玩家两只手：index = player*2 + (side==='right' ? 0 : 1) */
-  private hands: Hand[] = [
-    { player: 0, side: 'right', x: 0.5, y: 0.5, visible: true, speedY: 0 },
-    { player: 0, side: 'left', x: 0.42, y: 0.5, visible: true, speedY: 0 },
-    { player: 1, side: 'right', x: 0.5, y: 0.5, visible: true, speedY: 0 },
-    { player: 1, side: 'left', x: 0.42, y: 0.5, visible: true, speedY: 0 },
-  ]
+  /** 每玩家两只手：index = player*2 + (side==='right' ? 0 : 1)，支持到 4 人 */
+  private hands: Hand[] = Array.from({ length: 8 }, (_, i) => {
+    const player = Math.floor(i / 2)
+    const right = i % 2 === 0
+    return {
+      player,
+      side: right ? ('right' as const) : ('left' as const),
+      x: right ? 0.5 : 0.42,
+      y: 0.5,
+      visible: true,
+      speedY: 0,
+    }
+  })
   private keys = new Set<string>()
   private cleanupFns: Array<() => void> = []
   private raf = 0
@@ -48,11 +55,20 @@ export class MockProvider implements PoseProvider {
     }
     const onKey = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase()
-      if (k === ' ' || k === 'arrowup' || k === 'arrowdown' || k === 'arrowleft' || k === 'arrowright') e.preventDefault()
+      if (
+        k === ' ' || k === 'arrowup' || k === 'arrowdown' || k === 'arrowleft' || k === 'arrowright' ||
+        k === '1' || k === '3' || k === '5' || k === '0' || k === '4' || k === '6' || k === '8' || k === '2' || k === '9' ||
+        k === 'numpad1' || k === 'numpad3' || k === 'numpad5' || k === 'numpad0' || k === 'numpad4' || k === 'numpad6' || k === 'numpad8' || k === 'numpad2' || k === 'numpad9'
+      ) {
+        e.preventDefault()
+      }
       // 空格 = P1 下压（鼠标之外的备用键）
       if (k === ' ') this.tap(0)
-      // 回车 = P2 下压（双人时 P2、单人时 P1 备用）
+      // 回车 = P2 下压（双人及以上时 P2、单人时 P1 备用）
       if (k === 'enter') this.tap(this.playerCount > 1 ? 1 : 0)
+      // 数字 9 / 小键盘 9 = P3 / P4 下压
+      if (k === '9') this.tap(2)
+      if (k === 'numpad9') this.tap(3)
       this.keys.add(k)
     }
     const onKeyUp = (e: KeyboardEvent) => {
@@ -121,6 +137,40 @@ export class MockProvider implements PoseProvider {
         if (this.keys.has('k')) { l2.y = Math.min(1, l2.y + sp * dt); moved = true }
       }
     }
+    // P3：数字行（4/6/8/2 右手，1/3/5/0 左手）
+    if (this.playerCount > 2) {
+      const r3 = this.handOf(2, true)
+      if (r3.visible) {
+        if (this.keys.has('4')) { r3.x = Math.max(0, r3.x - sp * dt); moved = true }
+        if (this.keys.has('6')) { r3.x = Math.min(1, r3.x + sp * dt); moved = true }
+        if (this.keys.has('8')) { r3.y = Math.max(0, r3.y - sp * dt); moved = true }
+        if (this.keys.has('2')) { r3.y = Math.min(1, r3.y + sp * dt); moved = true }
+      }
+      const l3 = this.handOf(2, false)
+      if (l3.visible) {
+        if (this.keys.has('1')) { l3.x = Math.max(0, l3.x - sp * dt); moved = true }
+        if (this.keys.has('3')) { l3.x = Math.min(1, l3.x + sp * dt); moved = true }
+        if (this.keys.has('5')) { l3.y = Math.max(0, l3.y - sp * dt); moved = true }
+        if (this.keys.has('0')) { l3.y = Math.min(1, l3.y + sp * dt); moved = true }
+      }
+    }
+    // P4：小键盘（numpad4/6/8/2 右手，numpad1/3/5/0 左手）
+    if (this.playerCount > 3) {
+      const r4 = this.handOf(3, true)
+      if (r4.visible) {
+        if (this.keys.has('numpad4')) { r4.x = Math.max(0, r4.x - sp * dt); moved = true }
+        if (this.keys.has('numpad6')) { r4.x = Math.min(1, r4.x + sp * dt); moved = true }
+        if (this.keys.has('numpad8')) { r4.y = Math.max(0, r4.y - sp * dt); moved = true }
+        if (this.keys.has('numpad2')) { r4.y = Math.min(1, r4.y + sp * dt); moved = true }
+      }
+      const l4 = this.handOf(3, false)
+      if (l4.visible) {
+        if (this.keys.has('numpad1')) { l4.x = Math.max(0, l4.x - sp * dt); moved = true }
+        if (this.keys.has('numpad3')) { l4.x = Math.min(1, l4.x + sp * dt); moved = true }
+        if (this.keys.has('numpad5')) { l4.y = Math.max(0, l4.y - sp * dt); moved = true }
+        if (this.keys.has('numpad0')) { l4.y = Math.min(1, l4.y + sp * dt); moved = true }
+      }
+    }
     if (moved) this.emitPoint()
     // 姿态帧（虚拟人骨架）：左右腕分别跟随左手/右手
     this.broadcastPose()
@@ -134,10 +184,10 @@ export class MockProvider implements PoseProvider {
     for (let p = 0; p < n; p++) {
       const r = this.handOf(p, true)
       const l = this.handOf(p, false)
-      // 画面 x 全区直通（与实际位置一致）；虚拟人身体中线按显示布局分左右（P1 左 / P2 右）
+      // 画面 x 全区直通（与实际位置一致）；虚拟人身体中线按人数 N 等分（P1 最左 … Pn 最右）
       const hxR = r.x
       const hxL = l.x
-      const cy = this.playerCount > 1 ? (p === 0 ? 0.25 : 0.75) : 0.5
+      const cy = this.playerCount > 1 ? 0.25 + (p / (this.playerCount - 1)) * 0.5 : 0.5
       const P = (x: number, y: number, v = 1): PosePoint => ({ x, y, visibility: v })
       const pts: PosePoint[] = [
         P(cy, 0.28), // 0 鼻
@@ -233,18 +283,24 @@ export class MockProvider implements PoseProvider {
       ctx.fillText(`P${hand.player + 1}-${hand.side === 'right' ? 'R' : 'L'}`, px + 12, py - 14)
       ctx.restore()
     }
-    // 按键提示（右下角）
+    // 按键提示（右下角，最多两行）
     const tips =
       this.playerCount === 1
-        ? 'Mock 双手：鼠标=右手 · WASD=左手'
-        : 'Mock 双手：鼠标+WASD=P1 · 方向键+IJKL=P2'
+        ? ['Mock 双手：鼠标=右手 · WASD=左手']
+        : this.playerCount === 2
+          ? ['Mock 双手：鼠标+WASD=P1 · 方向键+IJKL=P2']
+          : this.playerCount === 3
+            ? ['Mock：P1 鼠标+WASD · P2 方向键+IJKL', 'P3 数字行']
+            : ['Mock：P1 鼠标+WASD · P2 方向键+IJKL', 'P3 数字行 · P4 小键盘']
     ctx.save()
-    ctx.font = `${Math.max(12, h * 0.022)}px sans-serif`
-    const tw = ctx.measureText(tips).width
+    ctx.font = `${Math.max(12, h * 0.02)}px sans-serif`
+    const lh = Math.max(16, h * 0.028)
+    const tw = Math.max(...tips.map((t) => ctx.measureText(t).width))
+    const th = tips.length * lh
     ctx.fillStyle = 'rgba(10,16,22,0.6)'
-    ctx.fillRect(w - tw - 24, h - 40, tw + 16, 28)
+    ctx.fillRect(w - tw - 20, h - th - 14, tw + 12, th + 10)
     ctx.fillStyle = '#9fb0c4'
-    ctx.fillText(tips, w - tw - 16, h - 20)
+    tips.forEach((t, i) => ctx.fillText(t, w - tw - 14, h - th - 4 + (i + 1) * lh))
     ctx.restore()
   }
 }

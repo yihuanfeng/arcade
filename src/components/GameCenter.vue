@@ -25,7 +25,7 @@ let nav: ReturnType<typeof createGestureUiNav> | null = null
 
 const srcOptions = { auto: '自动', camera: '摄像头', mock: '模拟' } as const
 
-function setPlayers(n: 1 | 2) {
+function setPlayers(n: 1 | 2 | 3 | 4) {
   playerCount.value = n
 }
 
@@ -92,15 +92,12 @@ onUnmounted(() => {
       <div class="sub">像活力街一样，用摄像头玩体感游戏</div>
       <div class="players">
         <button
+          v-for="n in [1, 2, 3, 4]"
+          :key="n"
           class="chip"
-          :class="{ on: playerCount === 1 }"
-          @click="setPlayers(1)"
-        >1 人</button>
-        <button
-          class="chip"
-          :class="{ on: playerCount === 2 }"
-          @click="setPlayers(2)"
-        >2 人</button>
+          :class="{ on: playerCount === n }"
+          @click="setPlayers(n as 1 | 2 | 3 | 4)"
+        >{{ n }} 人</button>
       </div>
     </div>
 
@@ -118,13 +115,13 @@ onUnmounted(() => {
         <div class="icon">{{ g.icon }}</div>
         <div class="name">{{ g.name }}</div>
         <div class="desc">{{ g.desc }}</div>
-        <div class="pcount">{{ playerCount }} 人 · {{ g.maxPlayers > 1 ? '支持 2 人' : '单人' }}</div>
+        <div class="pcount">{{ playerCount }} 人 · {{ g.maxPlayers > 1 ? `支持 ${g.maxPlayers} 人` : '单人' }}</div>
       </div>
     </div>
 
     <!-- 底部：提示 + 唯一设置入口 -->
     <div class="foot">
-      <div class="hint">先选人数（1 人 / 2 人），再体感点选游戏 · 下压 = 确认</div>
+      <div class="hint">先选人数（1-4 人），再体感点选游戏 · 下压 = 确认</div>
       <div class="settings">
         <button
           class="btn ghost small"

@@ -1,6 +1,7 @@
 /* ============ MediaPipe 摄像头真机体感 Provider ============
-   使用 PoseLandmarker（numPoses=2，支持双人），输出双手位置 + 快速下压(tap)事件。
-   坐标约定：摄像头画面左右镜像（照镜子）；画面左半 = P1 映射区，右半 = P2 映射区。
+   使用 PoseLandmarker（numPoses 跟随玩家数，支持最多 4 人），输出双手位置 + 快速下压(tap)事件。
+   坐标约定：摄像头画面左右镜像（照镜子）；玩家归属 = 可见手腕平均屏幕 x 按人数 N 等分
+   （N=2 → 左半 P1 / 右半 P2；N=4 → 四等分），坐标本身全区直通不缩放。
    MediaPipe 资源为 ESM + wasm + 模型，运行时动态加载，带超时保护。 */
 
 import type { GestureEvent, Hand, PoseFrame, PoseProvider } from '../types'
@@ -184,10 +185,12 @@ export class MediaPipeProvider implements PoseProvider {
       const w0 = valid(lmk[15]) ? lmk[15] : null
       const w1 = valid(lmk[16]) ? lmk[16] : null
       const wristVis = Math.max(w0?.visibility ?? 0, w1?.visibility ?? 0)
-      // 玩家归属：双人时用可见手腕的平均屏幕 x 判断左右半区（位置本身仍全区直通）
+      // 玩家归属：多人时用可见手腕的平均屏幕 x 按人数 N 等分（N=2 → 左右半区；N=4 → 四等分）。
+      // 位置本身仍全区直通（不缩放），只决定"这个人算几号玩家"
       const sx = [w0, w1].map((w) => (w ? 1 - w.x : NaN)).filter(Number.isFinite)
       const anchor = sx.length ? (sx[0] + sx[1]) / 2 : 0.5
-      const player = this.playerCount > 1 ? (anchor < 0.5 ? 0 : 1) : 0
+      const seg = 1 / this.playerCount
+      const player = Math.min(this.playerCount - 1, Math.max(0, Math.floor(anchor / seg)))
 
       const mkHand = (rawX: number, rawY: number, side: Hand['side']): Hand => {
         const mirrored = 1 - rawX

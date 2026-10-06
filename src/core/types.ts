@@ -93,8 +93,8 @@ export interface GameSpec {
   name: string
   icon: string
   desc: string
-  /** 支持的最大玩家数 */
-  maxPlayers: 1 | 2
+  /** 支持的最大玩家数（平台上限 4 人） */
+  maxPlayers: 1 | 2 | 3 | 4
   /** 该游戏使用的素材清单（构建时 import） */
   create(ctx: GameContext): GameInstance
 }
