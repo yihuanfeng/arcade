@@ -190,6 +190,8 @@ export class MockProvider implements PoseProvider {
       const hxL = l.x
       const cy = (p + 0.5) / n
       const P = (x: number, y: number, v = 1): PosePoint => ({ x, y, visibility: v })
+      const C = (v: number): number => Math.min(1, Math.max(0, v))
+      // 手指点相对各自手腕偏移（整只手随鼠标/键盘一起动，避免手腕走了手指还在原地）
       const pts: PosePoint[] = [
         P(cy, 0.28), // 0 鼻
         P(cy - 0.02, 0.29, 0.9), // 1 左眼内
@@ -208,12 +210,14 @@ export class MockProvider implements PoseProvider {
         P(cy + 0.14, 0.52), // 14 右肘
         P(hxL, l.y), // 15 左腕（跟随左手）
         P(hxR, r.y), // 16 右腕（跟随右手）
-        P(cy - 0.08, 0.38, 0.6), // 17 左小指
-        P(cy + 0.08, 0.38, 0.6), // 18 右小指
-        P(cy - 0.05, 0.39, 0.6), // 19 左食指
-        P(cy + 0.05, 0.39, 0.6), // 20 右食指
-        P(cy - 0.04, 0.4, 0.6), // 21 左拇指
-        P(cy + 0.04, 0.4, 0.6), // 22 右拇指
+        // 左手指点：相对左腕偏移（手指向下张开，随手腕一起平移）
+        P(C(hxL - 0.03), C(l.y + 0.06), 0.6), // 17 左小指
+        // 右手指点：相对右腕偏移
+        P(C(hxR + 0.03), C(r.y + 0.06), 0.6), // 18 右小指
+        P(C(hxL - 0.005), C(l.y + 0.08), 0.6), // 19 左食指
+        P(C(hxR + 0.005), C(r.y + 0.08), 0.6), // 20 右食指
+        P(C(hxL - 0.05), C(l.y + 0.02), 0.6), // 21 左拇指
+        P(C(hxR + 0.05), C(r.y + 0.02), 0.6), // 22 右拇指
         P(cy - 0.09, 0.62), // 23 左髋
         P(cy + 0.09, 0.62), // 24 右髋
         P(cy - 0.09, 0.78), // 25 左膝

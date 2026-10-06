@@ -169,6 +169,8 @@ GameInstance {
 
 16. **UI 按钮体感点击**：gestureUi 缺省自动收集页面所有可见 `button/[data-gid]/[role=button]`（按 z-index 降序，浮层优先）；命中元素无 `data-act`/`data-gid` 时自动 `el.click()` 兜底——**新页面任何按钮不标注也能体感点**。页面若要高亮/分发语义，给按钮加 `data-act` + onActivate 处理 key（如大厅人数 chips 的 `p1..p4`）。体感验证注意：进站位页后要在 3s 站位窗口内操作，且 click_xy 坐标按真实 `innerWidth/innerHeight` 换算
 
+17. **Mock 虚拟人手指随手腕动**：MockProvider 姿态帧里手指点（17-22）必须相对各自手腕（15 左腕/16 右腕）做固定偏移，鼠标/键盘移动时整只手一起平移——否则"手腕走了、手指还在原地"，连线被拉得很长（用户反馈"线条很奇怪"）
+
 ## 六、验证方法（交付前必做）
 
 
