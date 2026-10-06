@@ -92,6 +92,8 @@ interface Target {
   lastHit: number
   /** 炸弹引信剩余（秒）；为 0 时自动爆炸 */
   fuse: number
+  /** 下降消失开始时间（缩回洞里动画） */
+  downAt?: number
 }
 
 /** 接触命中半径（全区归一化：手与洞中心距离小于该值即打一下） */
@@ -237,7 +239,15 @@ export class WhackAMoleGame implements GameInstance {
         tg.state = 'down'
       }
     }
-    this.targets = this.targets.filter((tg) => tg.state === 'up' || (tg.state === 'hit' && this.t - tg.appearAt < tg.life + 0.35))
+    // 目标保留：up 一直在场；down 保留 0.28s 播放"下降缩回"动画后移除
+    this.targets = this.targets.filter((tg) => {
+      if (tg.state === 'up') return true
+      if (tg.state === 'down') {
+        tg.downAt ??= this.t
+        return this.t - tg.downAt < 0.28
+      }
+      return this.t - tg.appearAt < tg.life + 0.35
+    })
     // 表现层：飘字/粒子（GameKit）
     this.ctx.fx.update(dt)
     // 玩家：红闪
@@ -323,7 +333,7 @@ export class WhackAMoleGame implements GameInstance {
       p.combo = 0
       p.flash = 0.5
       this.ctx.fx.burst(px, py, '#ff6b6b', 8)
-      this.ctx.fx.float(px, py, '爆炸！-1♥', '#ff6b6b', VIEW_H * 0.05)
+      this.ctx.fx.float(px, py, '爆炸！-1♥', '#ff6b6b', VIEW_H * 0.07)
     }
   }
 
@@ -335,7 +345,7 @@ export class WhackAMoleGame implements GameInstance {
     tg.state = 'down'
     this.ctx.audio.play('collect')
     this.ctx.fx.burst(px, py, '#38bdf8', 14)
-    this.ctx.fx.float(px, py - VIEW_H * 0.08, '灭火！', '#38bdf8', VIEW_H * 0.045)
+    this.ctx.fx.float(px, py - VIEW_H * 0.08, '灭火！', '#38bdf8', VIEW_H * 0.065)
   }
 
   private hitTarget(player: number, tg: Target): void {
@@ -357,7 +367,7 @@ export class WhackAMoleGame implements GameInstance {
       p.flash = 0.5
       this.ctx.audio.play('whack')
       this.ctx.fx.burst(px, py, '#ff4d5e', 14)
-      this.ctx.fx.float(px, py - VIEW_H * 0.08, '怪物！-1♥', '#ff4d5e', VIEW_H * 0.05)
+      this.ctx.fx.float(px, py - VIEW_H * 0.08, '怪物！-1♥', '#ff4d5e', VIEW_H * 0.07)
       tg.state = 'down'
       return
     }
@@ -378,7 +388,7 @@ export class WhackAMoleGame implements GameInstance {
       tg.state = 'down'
       this.ctx.audio.play('chime')
       this.ctx.fx.burst(px, py, '#39ff14', 10)
-      this.ctx.fx.float(px, py - VIEW_H * 0.08, '+1♥', '#39ff14', VIEW_H * 0.05)
+      this.ctx.fx.float(px, py - VIEW_H * 0.08, '+1♥', '#39ff14', VIEW_H * 0.07)
     } else {
       pts = 50
       tg.state = 'down'
@@ -390,11 +400,11 @@ export class WhackAMoleGame implements GameInstance {
     const actual = Math.round(pts * (1 + p.combo * 0.05))
     p.score += actual
     // 命中飘字 +N（含连击加成）
-    this.ctx.fx.float(px, py - VIEW_H * 0.1, `+${actual}`, '#ffe14d', VIEW_H * 0.06)
+    this.ctx.fx.float(px, py - VIEW_H * 0.1, `+${actual}`, '#ffe14d', VIEW_H * 0.085)
     // 连击里程碑奖励：每 5 连一次，大字提醒
     if (p.combo % COMBO_MILESTONE === 0) {
       p.score += COMBO_BONUS
-      this.ctx.fx.float(px, py - VIEW_H * 0.2, `连击×${p.combo}！+${COMBO_BONUS}`, '#ff9f1c', VIEW_H * 0.075)
+      this.ctx.fx.float(px, py - VIEW_H * 0.2, `连击×${p.combo}！+${COMBO_BONUS}`, '#ff9f1c', VIEW_H * 0.105)
       this.ctx.audio.play('chime')
     }
     if (tg.kind !== 'helmet' || tg.hits >= 2) this.ctx.audio.playThrottled('hit', 60)
@@ -443,7 +453,7 @@ export class WhackAMoleGame implements GameInstance {
     this.renderHoles(ctx, w, h)
     // 全区共享目标
     for (const tg of this.targets) {
-      if (tg.state !== 'up') continue
+      if (tg.state !== 'up' && tg.state !== 'down') continue
       this.renderTarget(ctx, tg, w, h)
     }
     // 每位玩家：扣血红闪（坐标全区；红闪按玩家侧显示）
@@ -494,8 +504,13 @@ export class WhackAMoleGame implements GameInstance {
     const pos = this.holePos(tg.hole)
     const cx = pos.x * w
     const baseY = pos.y * h
-    // 向上冒出的动画：从洞底升起 + 纵向展开（0.24s）
-    const up = clamp((this.t - tg.appearAt) / 0.24, 0, 1)
+    // 动画：up=从洞里冒出（0.24s 内 0→1）；down=下降缩回（0.28s 内 1→0）
+    const isDown = tg.state === 'down'
+    const t0 = isDown ? (tg.downAt ?? this.t) : tg.appearAt
+    const dur = isDown ? 0.28 : 0.24
+    const up = isDown
+      ? 1 - clamp((this.t - t0) / dur, 0, 1)
+      : clamp((this.t - t0) / dur, 0, 1)
     const size = w * 0.085
     const body = this.imgs['mole-body']
     const imgOf = (name: string) => this.imgs[name]
@@ -504,7 +519,7 @@ export class WhackAMoleGame implements GameInstance {
       if (img?.complete && img.naturalWidth > 0) ctx.drawImage(img, dx, dy, dw, dh)
     }
     ctx.save()
-    // 起点在洞内下方，随 up 升到洞面之上，配合 scale 纵向展开 → 从洞里冒出来
+    // 起点在洞内下方，随 up 升到洞面之上（或下降缩回），配合 scale 纵向展开/压缩
     ctx.translate(cx, baseY + (1 - up) * size * 0.55)
     ctx.scale(1, Math.max(0.06, up))
     // 身体（绿丘）
@@ -541,15 +556,17 @@ export class WhackAMoleGame implements GameInstance {
       ctx.fill()
     } else {
       if (body?.complete && body.naturalWidth > 0) ctx.drawImage(body, -size / 2, -size * 0.55, size, size * 1.1)
-      draw('mole-eyes', -size * 0.22, -size * 0.14, size * 0.2, size * 0.12)
-      draw('mole-nose', -size * 0.07, -size * 0.02, size * 0.14, size * 0.12)
+      // 眼睛：两只黑圆点横排，保持素材 157:45 比例，居中于脸上部（勿压扁）
+      draw('mole-eyes', -size * 0.16, -size * 0.35, size * 0.32, size * 0.092)
+      draw('mole-nose', -size * 0.07, -size * 0.18, size * 0.14, size * 0.12)
       if (tg.kind === 'helmet') {
         if (tg.hits === 0) {
-          draw('helmet', -size * 0.3, -size * 0.48, size * 0.6, size * 0.3)
+          // 头盔：蓝色安全帽，保持素材 367:265 比例，戴在头顶
+          draw('helmet', -size * 0.36, -size * 0.68, size * 0.72, size * 0.52)
         } else {
-          // 头盔已被打落
-          draw('helmet', -size * 0.3, -size * 0.2, size * 0.6, size * 0.3)
-          draw('mole-hair', -size * 0.25, -size * 0.5, size * 0.5, size * 0.25)
+          // 头盔已被打落（下移）
+          draw('helmet', -size * 0.36, -size * 0.3, size * 0.72, size * 0.52)
+          draw('mole-hair', -size * 0.25, -size * 0.56, size * 0.5, size * 0.25)
         }
       }
     }
@@ -576,7 +593,7 @@ export class WhackAMoleGame implements GameInstance {
       const colors = ['#00e5ff', '#ff2d55', '#bd00ff', '#39ff14']
       const color = colors[i % colors.length]
       ctx.textAlign = i === 0 ? 'left' : 'right'
-      ctx.font = `800 ${h * 0.075}px sans-serif`
+      ctx.font = `800 ${h * 0.09}px sans-serif`
       ctx.fillStyle = color
       ctx.shadowColor = 'rgba(0,0,0,0.7)'
       ctx.shadowBlur = 8

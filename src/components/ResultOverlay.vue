@@ -65,6 +65,7 @@ onUnmounted(() => {
 <template>
   <div class="overlay" id="result">
     <div class="panel">
+      <div class="emoji-bg" aria-hidden="true">🐭</div>
       <h1>游戏结束</h1>
       <div v-if="result" class="rows">
         <div
@@ -110,33 +111,101 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.overlay {
+  background:
+    radial-gradient(ellipse at 28% 18%, rgba(0, 168, 232, 0.12), transparent 55%),
+    radial-gradient(ellipse at 72% 26%, rgba(255, 45, 85, 0.1), transparent 55%),
+    rgba(5, 9, 14, 0.86);
+}
+
+.panel {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(165deg, rgba(24, 34, 48, 0.95), rgba(9, 13, 21, 0.96));
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 22px;
+  box-shadow:
+    0 0 70px rgba(0, 168, 232, 0.14),
+    0 18px 40px rgba(0, 0, 0, 0.45);
+}
+
+.panel > *:not(.emoji-bg) {
+  position: relative;
+  z-index: 1;
+}
+
+.emoji-bg {
+  position: absolute;
+  right: -5%;
+  bottom: -16%;
+  font-size: clamp(120px, 28vh, 240px);
+  opacity: 0.06;
+  pointer-events: none;
+  user-select: none;
+  animation: emojiSway 8s ease-in-out infinite alternate;
+}
+
+@keyframes emojiSway {
+  from { transform: rotate(-7deg); }
+  to { transform: rotate(7deg); }
+}
+
+h1 {
+  margin: 0 0 10px;
+  font-size: var(--fs-hero);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  background: linear-gradient(90deg, #bff1ff 0%, #00a8e8 45%, #ff2d55 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 18px rgba(0, 168, 232, 0.35));
+  animation: titleFloat 2.6s ease-in-out infinite;
+}
+
+@keyframes titleFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
 .rows {
   display: flex;
-  flex-direction: column;
-  gap: clamp(16px, 2.5vw, 28px);
-  margin: 16px 0 24px;
+  flex-direction: row;
+  gap: clamp(14px, 2vw, 24px);
+  margin: 20px 0 28px;
+  align-items: stretch;
 }
 
 .row {
-  padding: clamp(14px, 2vw, 22px) clamp(24px, 3vw, 40px);
-  border-radius: 14px;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: clamp(16px, 2vw, 24px);
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .row.p1 {
-  border-left: 8px solid var(--p1);
+  border-top: 5px solid var(--p1);
+  box-shadow: inset 0 0 26px rgba(0, 168, 232, 0.07);
 }
 
 .row.p2 {
-  border-left: 8px solid var(--p2);
+  border-top: 5px solid var(--p2);
+  box-shadow: inset 0 0 26px rgba(255, 45, 85, 0.07);
 }
 
 .row.p3 {
-  border-left: 8px solid var(--p3);
+  border-top: 5px solid var(--p3);
+  box-shadow: inset 0 0 26px rgba(189, 0, 255, 0.07);
 }
 
 .row.p4 {
-  border-left: 8px solid var(--p4);
+  border-top: 5px solid var(--p4);
+  box-shadow: inset 0 0 26px rgba(57, 255, 20, 0.07);
 }
 
 .row .tag {
@@ -159,7 +228,7 @@ onUnmounted(() => {
   font-size: var(--fs-note);
   color: var(--sub);
   display: flex;
-  gap: 18px;
+  gap: 12px 18px;
   flex-wrap: wrap;
 }
 
