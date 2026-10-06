@@ -1,0 +1,274 @@
+/* ============ Arcade 体感平台 全局样式 ============
+   目标设备：手机竖屏/横屏 + 投屏电视（远距离 3 米可读）
+   原则：大字号（clamp 随视口缩放）、高对比、粗重、无精细小字 */
+
+:root {
+  --bg: #101820;
+  --panel: #17222e;
+  --line: rgba(255, 255, 255, 0.1);
+  --text: #f2f6fb;
+  --sub: #9fb0c4;
+  --accent: #5b8def;
+  --accent2: #ffb454;
+  --danger: #ff6b6b;
+  --ok: #58d68d;
+  /* 大字体系：标题 / 正文 / 小注，随视口宽度缩放，电视端足够大 */
+  --fs-hero: clamp(44px, 8vw, 96px);
+  --fs-title: clamp(30px, 5vw, 56px);
+  --fs-body: clamp(22px, 3vw, 36px);
+  --fs-sub: clamp(18px, 2.2vw, 26px);
+  --fs-note: clamp(16px, 2vw, 22px);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 全屏舞台：游戏画面与覆盖层都在里面 */
+.stage {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+}
+
+/* 游戏画布：逻辑分辨率 1280×720，按视口等比缩放（手机横屏/电视/桌面） */
+#game-canvas {
+  display: block;
+  background: #000;
+  touch-action: none;
+  aspect-ratio: 16 / 9;
+  width: min(100vw, calc(100vh * 16 / 9));
+  height: min(100vh, calc(100vw * 9 / 16));
+}
+
+/* ============ 覆盖层（大厅/结算/校准等） ============ */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 12, 16, 0.78);
+  color: var(--text);
+  text-align: center;
+  padding: 20px;
+}
+
+.overlay.hidden {
+  display: none;
+}
+
+.panel {
+  background: rgba(22, 30, 40, 0.94);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: clamp(24px, 4vw, 48px) clamp(28px, 5vw, 60px);
+  max-width: 94vw;
+  max-height: 92vh;
+  overflow: auto;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+}
+
+.panel h1 {
+  font-size: var(--fs-title);
+  letter-spacing: 2px;
+  margin-bottom: 8px;
+}
+
+.panel .sub {
+  color: var(--sub);
+  font-size: var(--fs-sub);
+  margin-bottom: 24px;
+}
+
+.btn {
+  display: inline-block;
+  margin: 8px 10px;
+  padding: 14px 40px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  letter-spacing: 1px;
+  user-select: none;
+  transition: transform 0.08s, filter 0.08s;
+}
+
+.btn:active {
+  transform: scale(0.96);
+}
+
+.btn.ghost {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.btn.warm {
+  background: var(--accent2);
+  color: #20180a;
+}
+
+.btn.focus {
+  outline: 4px solid var(--accent2);
+  outline-offset: 3px;
+  transform: scale(1.04);
+}
+
+.btn.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.hint {
+  margin-top: 16px;
+  font-size: var(--fs-note);
+  color: var(--sub);
+  line-height: 1.7;
+}
+
+/* ============ 手部光标（体感/Mock 共用渲染层） ============ */
+#hand-cursor-layer {
+  position: fixed;
+  inset: 0;
+  /* canvas 属性像素含 dpr，必须显式锁定 CSS 尺寸为视口，否则按属性像素显示导致光标位置 2 倍 */
+  width: 100vw;
+  height: 100vh;
+  z-index: 15;
+  pointer-events: none;
+}
+
+/* ============ 顶部 HUD（游戏中，DOM 层大字） ============ */
+#hud {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 12;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: clamp(10px, 2vw, 24px);
+  color: var(--text);
+  pointer-events: none;
+}
+
+.hud-block {
+  background: rgba(10, 16, 22, 0.55);
+  border-radius: 12px;
+  padding: 8px 18px;
+  min-width: 120px;
+}
+
+.hud-block .label {
+  font-size: var(--fs-note);
+  color: var(--sub);
+}
+
+.hud-block .value {
+  font-size: var(--fs-title);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.hud-block .value.small {
+  font-size: var(--fs-body);
+}
+
+/* 双人分屏时左右各一列 HUD */
+.hud-block.p1 .value { color: var(--ok); }
+.hud-block.p2 .value { color: var(--accent2); }
+
+/* ============ 加载遮罩 ============ */
+#loader {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: var(--text);
+  gap: 20px;
+}
+
+#loader .title {
+  font-size: var(--fs-hero);
+  font-weight: 700;
+  letter-spacing: 8px;
+}
+
+#loader .bar {
+  width: min(320px, 60vw);
+  height: 10px;
+  border-radius: 5px;
+  background: #263040;
+  overflow: hidden;
+}
+
+#loader .bar i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  transition: width 0.2s;
+}
+
+#loader .tip {
+  font-size: var(--fs-note);
+  color: var(--sub);
+}
+
+/* ============ 竖屏提示 ============ */
+#rotate-tip {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: var(--text);
+  gap: 16px;
+}
+
+#rotate-tip.hidden {
+  display: none;
+}
+
+#rotate-tip .icon {
+  font-size: 64px;
+}
+
+#rotate-tip p {
+  font-size: var(--fs-title);
+}
+
+/* ============ 通用 ============ */
+.mono {
+  font-variant-numeric: tabular-nums;
+}

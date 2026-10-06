@@ -1,0 +1,14 @@
+# 系统文件
+.DS_Store
+
+# 依赖与构建产物
+node_modules/
+dist/
+
+# 大体积原始素材（APK 原件、解包产物，不入库）
+active-arcade.apk
+extracted/
+assets/
+
+# TypeScript 增量缓存
+*.tsbuildinfo
