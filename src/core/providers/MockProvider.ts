@@ -184,10 +184,10 @@ export class MockProvider implements PoseProvider {
     for (let p = 0; p < n; p++) {
       const r = this.handOf(p, true)
       const l = this.handOf(p, false)
-      // 画面 x 全区直通（与实际位置一致）；虚拟人身体中线按人数 N 等分（P1 最左 … Pn 最右）
+      // 画面 x 全区直通（与实际位置一致）；虚拟人身体中线 = 玩家区中心（站位框正套住人形）
       const hxR = r.x
       const hxL = l.x
-      const cy = this.playerCount > 1 ? 0.25 + (p / (this.playerCount - 1)) * 0.5 : 0.5
+      const cy = (p + 0.5) / n
       const P = (x: number, y: number, v = 1): PosePoint => ({ x, y, visibility: v })
       const pts: PosePoint[] = [
         P(cy, 0.28), // 0 鼻

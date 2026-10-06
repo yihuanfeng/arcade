@@ -655,6 +655,6 @@ export const whackAMoleSpec = {
   name: '打地鼠',
   icon: '🐭',
   desc: '手碰到地鼠得分，头盔打两次，别碰怪物和炸弹',
-  maxPlayers: 4 as const,
+  maxPlayers: 2 as const,
   create: (ctx: GameContext) => new WhackAMoleGame(ctx),
 }

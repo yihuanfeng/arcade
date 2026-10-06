@@ -45,14 +45,32 @@ function draw() {
       ctx.fillStyle = 'rgba(10,16,22,0.85)'
       ctx.fillRect(0, 0, w, h)
     }
+    // 站位状态：每玩家一帧，腕可见 = 该玩家已就位
+    const expected = props.engine.match.playerCount
+    playersOk.value = Array.from({ length: expected }, (_, p) => {
+      const f = latestFrames.find((x) => x.player === p)
+      return !!f?.wristVisible
+    })
+    // 方形站位区（画在人形下层）：默认白框，识别到人 = 绿框
+    const n = expected
+    const seg = 1 / n
+    for (let p = 0; p < n; p++) {
+      const ok = playersOk.value[p]
+      const cx = (p + 0.5) * seg * w
+      const bw = seg * w * 0.62
+      const bh = h * 0.72
+      const bx = cx - bw / 2
+      const by = h * 0.2
+      ctx.save()
+      ctx.strokeStyle = ok ? '#58d68d' : '#ffffff'
+      ctx.globalAlpha = ok ? 0.95 : 0.55
+      ctx.lineWidth = Math.max(3, w * 0.006)
+      ctx.strokeRect(bx, by, bw, bh)
+      ctx.restore()
+    }
     drawPoseFrames(ctx, latestFrames, w, h)
   }
   progress.value = props.engine.readyTime / READY_SECONDS
-  const expected = props.engine.match.playerCount
-  playersOk.value = Array.from({ length: expected }, (_, p) => {
-    const f = latestFrames.find((x) => x.player === p)
-    return !!f?.wristVisible
-  })
   raf = requestAnimationFrame(draw)
 }
 
