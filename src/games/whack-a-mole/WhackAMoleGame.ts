@@ -1,6 +1,7 @@
 /* ============ 打地鼠游戏（Vue 工程版） ============
    从初版单文件移植并升级：
    - 双人同屏：每人半区独立场地（5 洞、独立命/分/连击），共用 60 秒
+   - 阶段化难度：60s 分 4 阶段，开局只有普通地鼠，头盔/生命 → 炸弹 → 怪物逐阶段解锁，刷怪速度逐阶段提升
    - 命中规则（接触即打，每个玩家左右手都可以打）：
      普通地鼠 +50 / 头盔地鼠打两次（掉盔 +30 再 +80）/ 加命道具 +1 命
      怪物（UFO）是坏目标：碰到掉 1 滴血
@@ -36,16 +37,48 @@ export const WHACK_AUDIO_ASSETS = [
 const DURATION = 60
 const LIVES = 3
 const HOLE_COUNT = 5
-const SPAWN_START = 1.15
-const SPAWN_MIN = 0.42
-const LIFE_START = 1.55
-const LIFE_MIN = 0.8
-const P_SPECIAL = 0.1
-const P_BOMB = 0.12
-const P_LIFE = 0.05
-const P_HELMET = 0.1
 const MAX_COMBO = 20
 const COUNTDOWN = 3.2
+
+/** 阶段化难度：60s 对局分 4 阶段，逐段解锁物品类型并提速（开局只有普通地鼠） */
+interface StageCfg {
+  /** 本阶段结束时间（对局开始后秒；t < until 属于本阶段） */
+  until: number
+  /** 本阶段出现的物品类型权重（开局只有地鼠，后续逐阶段加入） */
+  kinds: Array<{ kind: TargetKind; weight: number }>
+  /** 刷怪间隔基数（秒，单人；多人按人数均分，节奏整体保持） */
+  spawn: number
+  /** 目标停留寿命（秒；炸弹走引信、怪物略短） */
+  life: number
+}
+
+const STAGES: StageCfg[] = [
+  // 阶段1（0-15s）：只有普通地鼠，慢速
+  { until: 15, kinds: [{ kind: 'mole', weight: 1 }], spawn: 1.4, life: 2.0 },
+  // 阶段2（15-30s）：+头盔（打两次）、+生命道具，速度提升
+  { until: 30, kinds: [{ kind: 'mole', weight: 80 }, { kind: 'helmet', weight: 15 }, { kind: 'life', weight: 5 }], spawn: 1.1, life: 1.6 },
+  // 阶段3（30-45s）：+炸弹（灭火逻辑），速度再提升
+  { until: 45, kinds: [{ kind: 'mole', weight: 70 }, { kind: 'helmet', weight: 13 }, { kind: 'life', weight: 4 }, { kind: 'bomb', weight: 13 }], spawn: 0.8, life: 1.2 },
+  // 阶段4（45-60s）：+怪物（坏目标，碰到掉血），最快
+  { until: 60, kinds: [{ kind: 'mole', weight: 60 }, { kind: 'helmet', weight: 12 }, { kind: 'life', weight: 3 }, { kind: 'bomb', weight: 15 }, { kind: 'special', weight: 10 }], spawn: 0.55, life: 0.9 },
+]
+
+/** 对局内时间 → 阶段序号 */
+function stageAt(t: number): number {
+  for (let i = 0; i < STAGES.length; i++) if (t < STAGES[i].until) return i
+  return STAGES.length - 1
+}
+
+/** 阶段内按权重随机选物品类型 */
+function pickKind(stage: StageCfg): TargetKind {
+  const total = stage.kinds.reduce((s, k) => s + k.weight, 0)
+  let r = Math.random() * total
+  for (const k of stage.kinds) {
+    r -= k.weight
+    if (r < 0) return k.kind
+  }
+  return stage.kinds[stage.kinds.length - 1].kind
+}
 
 type TargetKind = 'mole' | 'helmet' | 'bomb' | 'special' | 'life'
 interface Target {
@@ -103,10 +136,9 @@ export class WhackAMoleGame implements GameInstance {
   private players: PlayerState[] = []
   /** 全区共享目标（多人自由竞争同一片场地，任何手按实际位置直接打） */
   private targets: Target[] = []
-  private spawnTimer = SPAWN_START
-  private spawnInterval = SPAWN_START
-  private lifeTimer = LIFE_START
-  private lifeInterval = LIFE_START
+  private spawnTimer = 0
+  private spawnInterval = 0
+  private stageIdx = 0
   private countdownStart = 0
   private ended = false
   private bgmStarted = false
@@ -121,12 +153,11 @@ export class WhackAMoleGame implements GameInstance {
     const n = this.ctx.match.playerCount
     this.players = Array.from({ length: n }, () => this.newPlayer())
     this.targets = []
-    // 刷怪速率按人数加速：多人共享场地，整体节奏保持（双人 ≈ 1.15s/2）
+    // 刷怪速率按人数加速：多人共享场地，整体节奏保持（双人 ≈ 单人基数的 1/2）
     const pace = Math.max(1, n)
-    this.spawnInterval = SPAWN_START / pace
+    this.stageIdx = 0
+    this.spawnInterval = STAGES[0].spawn / pace
     this.spawnTimer = this.spawnInterval
-    this.lifeInterval = LIFE_START
-    this.lifeTimer = LIFE_START
     this.state = 'countdown'
     this.t = 0
     this.countdownStart = 0
@@ -177,16 +208,17 @@ export class WhackAMoleGame implements GameInstance {
     if (this.state !== 'play' || this.ended) return
 
     this.timeLeft -= dt
+    // 阶段推进：到点换档 → 解锁新类型 + 提速（下一批目标按新阶段参数生成）
+    const si = stageAt(this.t)
+    if (si !== this.stageIdx) {
+      this.stageIdx = si
+      this.spawnInterval = STAGES[si].spawn / Math.max(1, this.ctx.match.playerCount)
+    }
     // 全区刷怪（共享场地，多人竞争同一批目标）
     this.spawnTimer -= dt
-    this.lifeTimer -= dt
     if (this.spawnTimer <= 0) {
       this.spawnTarget()
-      this.spawnTimer = Math.max(SPAWN_MIN, this.spawnInterval * (0.85 + Math.random() * 0.3))
-    }
-    if (this.lifeTimer <= 0) {
-      this.lifeInterval = Math.max(LIFE_MIN, this.lifeInterval * 0.92)
-      this.lifeTimer = this.lifeInterval
+      this.spawnTimer = Math.max(0.35, this.spawnInterval * (0.85 + Math.random() * 0.3))
     }
     // 目标生命周期 + 炸弹定时爆炸
     for (const tg of this.targets) {
@@ -227,18 +259,15 @@ export class WhackAMoleGame implements GameInstance {
     for (let i = 0; i < HOLE_COUNT; i++) if (!free.includes(i)) freeHoles.push(i)
     if (freeHoles.length === 0) return
     const holeIdx = freeHoles[Math.floor(Math.random() * freeHoles.length)]
-    const r = Math.random()
-    let kind: TargetKind = 'mole'
-    if (r < P_SPECIAL) kind = 'special'
-    else if (r < P_SPECIAL + P_BOMB) kind = 'bomb'
-    else if (r < P_SPECIAL + P_BOMB + P_LIFE) kind = 'life'
-    else if (r < P_SPECIAL + P_BOMB + P_LIFE + P_HELMET) kind = 'helmet'
-    const speed = 1 - (this.t / (DURATION + COUNTDOWN)) * 0.4
+    const stage = STAGES[this.stageIdx]
+    const kind = pickKind(stage)
+    // 炸弹走引信；怪物停留稍短（坏目标不该呆太久）；其余按阶段寿命
+    const life = kind === 'special' ? stage.life * 0.8 : stage.life
     this.targets.push({
       kind,
       hole: holeIdx,
       appearAt: this.t,
-      life: (kind === 'special' ? 0.7 : 1.5) * speed,
+      life,
       state: 'up',
       hits: 0,
       lastHit: -1,
