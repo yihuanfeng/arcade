@@ -1,15 +1,14 @@
 /* ============ 打地鼠游戏（Vue 工程版） ============
-   从初版单文件移植并升级：
-   - 双人同屏：每人半区独立场地（5 洞、独立命/分/连击），共用 60 秒
+   - 多人同屏：1-3 人共享场地（5 洞、独立命/分/连击），共用 60 秒
    - 阶段化难度：60s 分 4 阶段，开局只有普通地鼠，头盔/生命 → 炸弹 → 怪物逐阶段解锁，刷怪速度逐阶段提升
-   - 命中规则（接触即打，每个玩家左右手都可以打）：
-     普通地鼠 +50 / 头盔地鼠打两次（掉盔 +30 再 +80）/ 加命道具 +1 命
-     怪物（UFO）是坏目标：碰到掉 1 滴血
+   - 命中规则（拍打判定：地鼠要"从上往下拍"才打中，悬停不算；每个玩家左右手都可以打）：
+     普通地鼠 +50 / 头盔地鼠打两次（掉盔 +30 再 +80）/ 加命道具碰到 +1 命
+     怪物（尖三角火怪）是坏目标：碰到掉 1 滴血
      炸弹是"点火状态"：碰到不掉血，打它=灭火；不灭掉引信走完就爆炸，掉 1 血
    - 连击：每连 +5% 加成封顶 20；每 5 连触发里程碑奖励 +50；命中飘字 +N
    - 洞：椭圆、位于场地底部，目标从洞里向上冒出的动画
-   - 渲染全在画布（大字号 HUD 适配投屏）；玩家色：P1 霓虹蓝 / P2 霓虹红
-   素材：活力街 APK 原版（bg-main 工地背景 + 地鼠部件 + 音效） */
+   - 渲染全在画布（大字号 HUD 适配投屏）；玩家色：P1 霓虹蓝 / P2 霓虹红 / P3 紫
+   素材：活力街 APK 原版（bg-main 工地背景 + 地鼠部件 + 尖三角怪物 + 音效） */
 
 import type { GameContext, GameInstance, GestureEvent, Hand } from '../../core/types'
 import { VIEW_W, VIEW_H } from '../../core/GameEngine'
@@ -39,6 +38,8 @@ const LIVES = 3
 const HOLE_COUNT = 5
 const MAX_COMBO = 20
 const COUNTDOWN = 3.2
+/** 拍打判定阈值（归一化 y/秒）：手向下挥动速度超过它才算"拍"中地鼠/头盔，悬停不算 */
+const HIT_SWING_SPEED = 0.35
 
 /** 阶段化难度：60s 对局分 4 阶段，逐段解锁物品类型并提速（开局只有普通地鼠） */
 interface StageCfg {
@@ -296,29 +297,34 @@ export class WhackAMoleGame implements GameInstance {
     }
     if (e.type === 'tap' && e.hand) {
       const p = this.players[e.hand.player]
-      if (p && p.lives > 0 && p.flash <= 0) this.ctx.audio.playThrottled('boing', 100)
+      if (p && p.lives > 0 && p.flash <= 0) this.ctx.audio.playThrottled('boing', 250, 0.6)
     }
   }
 
-  /** 接触判定：手与目标距离小于命中半径即打一下（每目标带冷却防连帧）
-      hand.x/y 是全区归一化坐标（与共享目标同坐标系），任何手可以打任何洞 */
+  /** 接触判定：地鼠/头盔要"从上往下拍"（下挥速度超阈值）才打中，悬停不算；
+      怪物/炸弹/加命保持碰触（碰到怪掉血、碰到炸弹灭火、碰到红心加命）。
+      每目标带冷却防连帧；hand.x/y 是全区归一化坐标（与共享目标同坐标系），任何手可打任何洞 */
   private contactCheck(player: number, hand: Hand): void {
     const p = this.players[player]
     if (!p || p.lives <= 0 || p.flash > 0) return
     const cx = hand.x
     const cy = hand.y
+    // 下拍：手向下挥动（speedY 向下为正）
+    const swingingDown = hand.speedY > HIT_SWING_SPEED
     let hit = false
     for (const tg of this.targets) {
       if (tg.state !== 'up') continue
       if (this.t - tg.lastHit < 0.25) continue
       const hp = this.holePos(tg.hole)
       if (Math.hypot(hp.x - cx, hp.y - cy) < HIT_RADIUS) {
+        // 地鼠/头盔必须"拍"（下压动作）才算打；坏目标/道具碰触即触发
+        if ((tg.kind === 'mole' || tg.kind === 'helmet') && !swingingDown) continue
         tg.lastHit = this.t
         this.hitTarget(player, tg)
         hit = true
       }
     }
-    if (!hit) this.ctx.audio.playThrottled('boing', 100)
+    if (!hit) this.ctx.audio.playThrottled('boing', 250, 0.6)
   }
 
   /** 炸弹爆炸（引信耗尽自动爆）：全场掉一滴血 */
@@ -360,12 +366,12 @@ export class WhackAMoleGame implements GameInstance {
       this.extinguish(tg)
       return
     }
-    // 怪物：坏目标，碰到掉一滴血
+    // 怪物：坏目标，碰到掉一滴血（whack 专用"坏目标"音）
     if (tg.kind === 'special') {
       p.lives -= 1
       p.combo = 0
       p.flash = 0.5
-      this.ctx.audio.play('whack')
+      this.ctx.audio.playThrottled('whack', 90, 0.9)
       this.ctx.fx.burst(px, py, '#ff4d5e', 14)
       this.ctx.fx.float(px, py - VIEW_H * 0.08, '怪物！-1♥', '#ff4d5e', VIEW_H * 0.07)
       tg.state = 'down'
@@ -379,9 +385,10 @@ export class WhackAMoleGame implements GameInstance {
         this.ctx.fx.burst(px, py, '#ff2d55', 10)
       } else {
         pts = 30
-        this.ctx.audio.playThrottled('whack', 60)
         this.ctx.fx.burst(px, py, '#00e5ff', 6)
       }
+      // 头盔每一拍都用统一打击音（不再叠 whack）
+      this.ctx.audio.playThrottled('hit', 90, 0.8)
     } else if (tg.kind === 'life') {
       pts = 30
       p.lives = Math.min(5, p.lives + 1)
@@ -407,7 +414,7 @@ export class WhackAMoleGame implements GameInstance {
       this.ctx.fx.float(px, py - VIEW_H * 0.2, `连击×${p.combo}！+${COMBO_BONUS}`, '#ff9f1c', VIEW_H * 0.105)
       this.ctx.audio.play('chime')
     }
-    if (tg.kind !== 'helmet' || tg.hits >= 2) this.ctx.audio.playThrottled('hit', 60)
+    if (tg.kind !== 'helmet' || tg.hits >= 2) this.ctx.audio.playThrottled('hit', 90, 0.8)
   }
 
   /* ================= 布局 ================= */
@@ -539,7 +546,9 @@ export class WhackAMoleGame implements GameInstance {
         ctx.fill()
       }
     } else if (tg.kind === 'special') {
-      draw('char-ufo', -size / 2, -size / 2, size * 0.9, size * 0.9)
+      // 尖三角怪（头上尖尖、下有底座屏障）：APK 原版 char-triangle + 头顶代码火焰
+      draw('char-triangle', -size * 0.5, -size * 0.5, size * 0.92, size * 0.92)
+      this.renderFlame(ctx, 0, -size * 0.66, size * 0.4, this.t)
     } else if (tg.kind === 'life') {
       // 代码绘制红心（解包素材 extra-life 是黑色心形，不符合预期；HUD 爱心用 heart.png 红色素材不受影响）
       const s = size * 0.95
@@ -571,6 +580,25 @@ export class WhackAMoleGame implements GameInstance {
       }
     }
     ctx.restore()
+  }
+
+  /** 代码火焰（尖三角怪头顶冒火）：三层水滴形火苗，随对局时间摆动 */
+  private renderFlame(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, t: number): void {
+    const flick = Math.sin(t * 11 + x * 7) * 0.07
+    const layers = [
+      { color: '#ff7b1c', w: 0.42, h: 0.5, ph: 0.55 },
+      { color: '#ffb454', w: 0.3, h: 0.42, ph: 0.38 },
+      { color: '#ffe9a8', w: 0.16, h: 0.3, ph: 0.22 },
+    ]
+    for (const L of layers) {
+      ctx.fillStyle = L.color
+      ctx.beginPath()
+      ctx.moveTo(x, y + s * 0.5)
+      ctx.bezierCurveTo(x - s * L.w, y + s * 0.18, x - s * (L.w * 0.66), y - s * L.h, x, y - s * (L.ph + flick))
+      ctx.bezierCurveTo(x + s * (L.w * 0.66), y - s * L.h, x + s * L.w, y + s * 0.18, x, y + s * 0.5)
+      ctx.closePath()
+      ctx.fill()
+    }
   }
 
   private renderHud(ctx: CanvasRenderingContext2D, w: number, h: number): void {
@@ -635,10 +663,10 @@ export const whackAMoleSpec = {
   id: 'whack-a-mole',
   name: '打地鼠',
   icon: '🐭',
-  desc: '手碰到地鼠得分，头盔打两次，别碰怪物和炸弹',
-  maxPlayers: 2 as const,
+  desc: '下拍地鼠得分，头盔打两次，别碰怪物和炸弹',
+  maxPlayers: 3 as const,
   genre: 'reaction' as const,
   difficulty: 'easy' as const,
-  controls: '双手接触判定',
+  controls: '双手下拍判定',
   create: (ctx: GameContext) => new WhackAMoleGame(ctx),
 }

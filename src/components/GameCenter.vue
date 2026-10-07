@@ -18,6 +18,7 @@ const emit = defineEmits<{
 
 const playerCount = ref(1)
 const settingsOpen = ref(false)
+const fullscreen = ref(false)
 const focusKey = ref('')
 const progress = ref(0)
 const focusStyle = ref({ left: '-100px', top: '-100px', visible: false })
@@ -31,6 +32,18 @@ function diffText(d: 'easy' | 'normal' | 'hard'): string {
 
 function setPlayers(n: 1 | 2 | 3 | 4) {
   playerCount.value = n
+}
+
+function toggleFullscreen() {
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(() => {})
+  } else {
+    document.documentElement.requestFullscreen().catch(() => {})
+  }
+}
+
+function onFsChange() {
+  fullscreen.value = !!document.fullscreenElement
 }
 
 function pickGame(g: GameSpec) {
@@ -61,12 +74,17 @@ function execute(key: string) {
     settingsOpen.value = false
     return
   }
+  if (key === 'fullscreen') {
+    toggleFullscreen()
+    return
+  }
   // 否则是游戏卡片
   const g = props.games.find((x) => x.id === key)
   if (g) pickGame(g)
 }
 
 onMounted(() => {
+  document.addEventListener('fullscreenchange', onFsChange)
   // 全局 UI 交互（hold-to-confirm）：光标命中目标 → 进度加载满才触发
   nav = createGestureUiNav({
     gesture: props.gesture,
@@ -87,6 +105,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  document.removeEventListener('fullscreenchange', onFsChange)
   nav?.stop()
 })
 </script>
@@ -108,6 +127,12 @@ onUnmounted(() => {
           @click="setPlayers(n as 1 | 2 | 3 | 4)"
         >{{ n }} 人</button>
       </div>
+      <button
+        class="fs-btn"
+        :data-act="'fullscreen'"
+        :class="{ focus: focusKey === 'fullscreen' }"
+        @click="toggleFullscreen"
+      >{{ fullscreen ? '退出全屏' : '全屏' }}</button>
     </div>
 
     <!-- 游戏网格：3 列，未来 9 个游戏排 3×3 -->
@@ -252,6 +277,29 @@ onUnmounted(() => {
 }
 
 .players .chip.focus {
+  outline: 4px solid var(--accent2);
+  outline-offset: 3px;
+  transform: scale(1.04);
+}
+
+/* 全屏按钮（bar 最右侧） */
+.fs-btn {
+  padding: 10px 24px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 3px solid var(--line);
+  color: var(--text);
+  font-size: var(--fs-sub);
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.1s, background 0.1s, transform 0.1s;
+}
+
+.fs-btn:hover {
+  transform: scale(1.05);
+}
+
+.fs-btn.focus {
   outline: 4px solid var(--accent2);
   outline-offset: 3px;
   transform: scale(1.04);
