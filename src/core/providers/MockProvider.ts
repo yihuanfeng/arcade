@@ -272,20 +272,23 @@ export class MockProvider implements PoseProvider {
       const px = hand.x * w
       const py = hand.y * h
       const color = colors[hand.player % colors.length]
-      // 瞄准环
+      // 瞄准环 + 中心圆点
+      const radius = Math.max(14, w * 0.02)
       ctx.save()
       ctx.strokeStyle = color
       ctx.lineWidth = Math.max(3, w * 0.008)
       ctx.beginPath()
-      ctx.arc(px, py, Math.max(14, w * 0.02), 0, Math.PI * 2)
+      ctx.arc(px, py, radius, 0, Math.PI * 2)
       ctx.stroke()
       ctx.fillStyle = color
       ctx.beginPath()
       ctx.arc(px, py, Math.max(4, w * 0.006), 0, Math.PI * 2)
       ctx.fill()
-      // 标签（P1-R / P1-L）
+      // 标签（P1-R / P1-L）：圆环正上方居中（不与环重叠）
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'bottom'
       ctx.font = `bold ${Math.max(13, h * 0.028)}px sans-serif`
-      ctx.fillText(`P${hand.player + 1}-${hand.side === 'right' ? 'R' : 'L'}`, px + 12, py - 14)
+      ctx.fillText(`P${hand.player + 1}-${hand.side === 'right' ? 'R' : 'L'}`, px, py - radius - 6)
       ctx.restore()
     }
     // 按键提示（右下角，最多两行）
