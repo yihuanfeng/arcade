@@ -270,8 +270,8 @@ onUnmounted(() => {
 }
 
 .card {
-  width: clamp(170px, 19vw, 250px);
-  padding: clamp(14px, 2vw, 24px);
+  width: clamp(160px, 19vw, 250px);
+  padding: clamp(10px, 1.8vh, 22px);
   background: rgba(23, 34, 46, 0.9);
   border: 3px solid var(--line);
   border-radius: 16px;
@@ -288,34 +288,36 @@ onUnmounted(() => {
 }
 
 .card .icon {
-  font-size: clamp(44px, 5.5vw, 72px);
+  /* 高度感知：矮视口（手机横屏/小窗）自动压缩，保证一屏无滚动；高屏保持大 */
+  font-size: clamp(34px, min(5.5vw, 4.6vh), 68px);
   line-height: 1;
 }
 
 .card .name {
-  font-size: clamp(28px, 4vw, 46px);
+  font-size: clamp(20px, min(3.8vw, 3.2vh), 48px);
   font-weight: 700;
-  margin-top: 6px;
+  margin-top: 4px;
 }
 
 .card .desc {
-  font-size: var(--fs-note);
+  font-size: clamp(12px, min(2.1vw, 1.9vh), 17px);
   color: var(--sub);
-  margin-top: 4px;
-  line-height: 1.35;
+  margin-top: 3px;
+  line-height: 1.3;
 }
 
 .card .meta {
-  margin-top: 8px;
+  margin-top: 6px;
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
+  justify-content: center;
 }
 
 .card .meta .diff {
-  font-size: var(--fs-note);
+  font-size: clamp(11px, min(1.8vw, 1.7vh), 14px);
   font-weight: 700;
-  padding: 2px 12px;
+  padding: 1px 10px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.08);
   color: var(--sub);
@@ -337,14 +339,14 @@ onUnmounted(() => {
 }
 
 .card .meta .ctrl {
-  font-size: var(--fs-note);
+  font-size: clamp(11px, min(1.8vw, 1.7vh), 14px);
   color: var(--sub);
 }
 
 .card .pcount {
-  font-size: var(--fs-note);
+  font-size: clamp(11px, min(1.8vw, 1.7vh), 14px);
   color: var(--accent2);
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 /* 底部：提示 + 设置入口 */

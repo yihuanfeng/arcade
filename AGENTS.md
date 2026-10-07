@@ -175,6 +175,8 @@ GameInstance {
 
 19. **APK 其他游戏素材**：active-arcade.apk 是 Unity Addressables 工程，其余体感游戏（spacepong/laserdodge/flappyjump/bunnyhop 等）素材在 `assets/aa/Android/*.bundle`，用 Python UnityPy 解包（Texture2D → PIL Image，ASTC 自动解码）；**注意别手写 PNG 头**（曾把原始像素当 PNG 写出坏文件），直接 `img.convert('RGBA').save(p)`；spacepong 只有背景/标题贴图（space-pong-bg 暗紫太空网格可当 co-pilot 背景），玩法元素（飞船/障碍）没有独立贴图，用代码绘制替代；音效直接复用打地鼠同源 mp3（都来自 APK，按游戏目录复制一份）
 
+20. **大厅卡片高度感知**：游戏卡片字号若只用 vw/固定值，新游戏卡片内容一变就会把页面撑高（用户反馈"新增游戏把页面撑高了"）。卡片系列字号/间距用 `clamp(min, min(xvw, yvh), max)` 高度感知压缩（icon 5.5vw/4.6vh、name 3.8vw/3.2vh、desc 2.1vw/1.9vh），`.overlay` 加 `overflow:hidden` 兜底；目标：任何视口（含手机横屏矮屏）一屏无滚动，未来 3×3=9 个游戏也能放下
+
 ## 六、验证方法（交付前必做）
 
 

@@ -78,6 +78,7 @@ body,
   color: var(--text);
   text-align: center;
   padding: 20px;
+  overflow: hidden; /* 体感页禁滚动：内容由内部自适应压缩，绝不出现滚动条 */
 }
 
 .overlay.hidden {
