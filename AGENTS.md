@@ -171,6 +171,10 @@ GameInstance {
 
 17. **Mock 虚拟人手指随手腕动**：MockProvider 姿态帧里手指点（17-22）必须相对各自手腕（15 左腕/16 右腕）做固定偏移，鼠标/键盘移动时整只手一起平移——否则"手腕走了、手指还在原地"，连线被拉得很长（用户反馈"线条很奇怪"）
 
+18. **分轴合体控制（双人成行式配合）**：co-pilot 的合体操控模式——P1 手控飞船 Y、P2 手控飞船 X，两人各控一轴缺一不可（单人降级为单手直控）；双人配合输入用**位标记**（能量球 touch 位：1=P1、2=P2，两人都碰到 =3 才收），判"同时"不要用时间窗口，用逐帧累积位标记最稳
+
+19. **APK 其他游戏素材**：active-arcade.apk 是 Unity Addressables 工程，其余体感游戏（spacepong/laserdodge/flappyjump/bunnyhop 等）素材在 `assets/aa/Android/*.bundle`，用 Python UnityPy 解包（Texture2D → PIL Image，ASTC 自动解码）；**注意别手写 PNG 头**（曾把原始像素当 PNG 写出坏文件），直接 `img.convert('RGBA').save(p)`；spacepong 只有背景/标题贴图（space-pong-bg 暗紫太空网格可当 co-pilot 背景），玩法元素（飞船/障碍）没有独立贴图，用代码绘制替代；音效直接复用打地鼠同源 mp3（都来自 APK，按游戏目录复制一份）
+
 ## 六、验证方法（交付前必做）
 
 

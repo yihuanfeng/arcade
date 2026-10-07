@@ -13,6 +13,8 @@ import PoseOverlay from './components/PoseOverlay.vue'
 import GestureTestPage from './components/GestureTestPage.vue'
 import { whackAMoleSpec } from './games/whack-a-mole/WhackAMoleGame'
 import { WHACK_AUDIO_ASSETS } from './games/whack-a-mole/WhackAMoleGame'
+import { coPilotSpec } from './games/co-pilot/CoPilotGame'
+import { CO_PILOT_AUDIO_ASSETS } from './games/co-pilot/CoPilotGame'
 
 /* ---------- 引擎单例装配 ---------- */
 const gesture = new GestureEngine()
@@ -20,7 +22,9 @@ const audio = new AudioManager()
 const scores = new ScoreStore()
 const engine = new GameEngine(gesture, audio, scores)
 engine.register(whackAMoleSpec)
+engine.register(coPilotSpec)
 audio.register(WHACK_AUDIO_ASSETS)
+audio.register(CO_PILOT_AUDIO_ASSETS)
 
 const loading = ref(true)
 const bootTip = ref('正在准备…')
