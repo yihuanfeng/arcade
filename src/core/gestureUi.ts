@@ -82,8 +82,8 @@ export function createGestureUiNav(opts: GestureUiNavOptions): GestureUiNav {
     }
   })
 
-  function hitTest(x: number, y: number): HTMLElement | null {
-    for (const el of targetsFn()) {
+  function hitTest(x: number, y: number, targets: HTMLElement[]): HTMLElement | null {
+    for (const el of targets) {
       if (!el) continue
       const r = el.getBoundingClientRect()
       if (x >= r.left - 20 && x <= r.right + 20 && y >= r.top - 20 && y <= r.bottom + 20) {
@@ -97,12 +97,14 @@ export function createGestureUiNav(opts: GestureUiNavOptions): GestureUiNav {
     const dt = Math.min(0.05, lastT ? (t - lastT) / 1000 : 0.016)
     lastT = t
     const h = latestHand
+    let targets: HTMLElement[] = []
     if (h.visible) {
       // 手坐标已是全区归一化，直接乘视口尺寸 = 实际位置
       state.x = h.x * window.innerWidth
       state.y = h.y * window.innerHeight
       state.visible = true
-      const el = hitTest(state.x, state.y)
+      targets = targetsFn()
+      const el = hitTest(state.x, state.y, targets)
       const key = el ? keyOf(el) : ''
       state.key = key
       if (el) {
@@ -135,7 +137,9 @@ export function createGestureUiNav(opts: GestureUiNavOptions): GestureUiNav {
       state.progress = 0
     }
     opts.onStateChange({ ...state })
-    Object.assign(uiCursorState, state)
+    // 全局光标状态仅由"本 nav 有可见目标"时写入——v-show 隐藏的视图（如 ready/result 在大厅时）
+    // 其 targets 元素 rect 为 0、key 恒 ''，若也写会覆盖可见视图的 key/progress，导致进度环动画不显示
+    if (targets.some((el) => el.getClientRects().length > 0)) Object.assign(uiCursorState, state)
     raf = requestAnimationFrame(loop)
   }
 

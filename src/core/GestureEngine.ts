@@ -30,6 +30,58 @@ export const POSE_CONNECTIONS: ReadonlyArray<readonly [number, number]> = [
   [27, 29], [28, 30], [29, 31], [30, 32], [27, 31], [28, 32],
 ]
 
+/** One-Euro 滤波器（单轴）：
+   静止时按 minCutoff 强平滑（消除识别抖动），移动时 cutoff 随速度升高（保持跟手）；
+   适合摄像头体感的骨骼/手部轨迹滤波，比固定指数平滑明显更稳且不钝。 */
+class OneEuroFilter {
+  private prevX = 0
+  private prevDx = 0
+  private prevT = 0
+  private initialized = false
+
+  constructor(
+    private minCutoff: number,
+    private beta: number,
+    private dCutoff: number,
+  ) {}
+
+  /** 输出滤波后值；minCutoffOverride 可每帧调整（如低置信度点给更强平滑） */
+  filter(x: number, t: number, minCutoffOverride?: number): number {
+    if (!this.initialized) {
+      this.prevX = x
+      this.prevDx = 0
+      this.prevT = t
+      this.initialized = true
+      return x
+    }
+    const dt = Math.max(0.001, (t - this.prevT) / 1000)
+    const dx = (x - this.prevX) / dt
+    // 导数平滑（速度滤波）
+    const tauD = 1 / (2 * Math.PI * this.dCutoff)
+    const alphaD = 1 / (1 + tauD / dt)
+    const edx = this.prevDx + (dx - this.prevDx) * alphaD
+    // 自适应截止频率：速度快 → 截止高 → 更跟手
+    const cutoff = (minCutoffOverride ?? this.minCutoff) + this.beta * Math.abs(edx)
+    const tau = 1 / (2 * Math.PI * cutoff)
+    const alpha = 1 / (1 + tau / dt)
+    const ex = this.prevX + (x - this.prevX) * alpha
+    this.prevX = ex
+    this.prevDx = edx
+    this.prevT = t
+    return ex
+  }
+
+  /** 最近一次平滑导数（速度，单位 = 输入单位/秒；x 轴与 y 轴实例共用此字段） */
+  get dx(): number {
+    return this.prevDx
+  }
+
+  /** y 轴实例的导数别名（与 dx 同字段，便于调用方按轴取名） */
+  get dy(): number {
+    return this.prevDx
+  }
+}
+
 export class GestureEngine {
   private provider: PoseProvider | null = null
   private listeners = new Set<(e: GestureEvent) => void>()
@@ -43,12 +95,24 @@ export class GestureEngine {
   /** 手坐标 / 骨架点平滑缓存（key=player:side / player），减少识别帧间抖动 */
   private smoothHand = new Map<string, { x: number; y: number; sx: number; sy: number; ts: number }>()
   private smoothLand = new Map<number, PosePoint[]>()
-  /** 平滑系数：新值占比（越大跟手越快、越小越稳） */
-  private readonly SMOOTH = 0.45
+  /** One-Euro 滤波实例缓存：每手 (x,y) 各一轴；每玩家 33 关节 × (x,y) */
+  private handFilters = new Map<string, { fx: OneEuroFilter; fy: OneEuroFilter }>()
+  private landFilters = new Map<number, OneEuroFilter[][]>()
+  /** One-Euro 参数：骨架静止截止 0.8Hz（强平滑）+ 速度系数 0.5（动作仍响应）+ 导数截止 1Hz */
+  private readonly SKEL_MIN_CUTOFF = 0.8
+  private readonly SKEL_BETA = 0.5
+  private readonly SKEL_D_CUTOFF = 1.0
+  /** 低置信度（visibility < LOW_VIS）的骨架点：截止降为 0.25Hz，几乎保持不动，防遮挡乱跳 */
+  private readonly LOW_VIS = 0.35
+  private readonly LOW_VIS_CUTOFF = 0.25
+  /** 极低置信度：直接沿用上次位置（识别已不可靠） */
+  private readonly DEAD_VIS = 0.2
+  /** 手坐标：截止 1.2Hz + 速度系数 0.15（跟手同时抑制抖动） */
+  private readonly HAND_MIN_CUTOFF = 1.2
+  private readonly HAND_BETA = 0.15
+  private readonly HAND_D_CUTOFF = 1.0
   /** 静止去抖阈值（归一化位移/帧）：小于该位移视为手静止，沿用上次位置，消除高频微抖 */
   private readonly STILL_EPS = 0.0015
-  /** 速度平滑系数（EMA）：抑制单帧速度尖刺 */
-  private readonly SPEED_SMOOTH = 0.5
 
   constructor(private createCamera: () => PoseProvider = () => new MediaPipeProvider()) {}
 
@@ -96,6 +160,8 @@ export class GestureEngine {
     this.hands = []
     this.smoothHand.clear()
     this.smoothLand.clear()
+    this.handFilters.clear()
+    this.landFilters.clear()
     if (source === 'mock') {
       this.provider = new MockProvider()
       await this.provider.start(playerCount)
@@ -118,36 +184,36 @@ export class GestureEngine {
     this.wire(this.provider)
   }
 
-  /** 把 provider 的事件流接到引擎广播（转发层做全局平滑：手坐标 + 骨架点 + 速度 EMA + 静止去抖） */
+  /** 把 provider 的事件流接到引擎广播（转发层做全局平滑：One-Euro 自适应滤波 + 静止去抖） */
   private wire(provider: PoseProvider): void {
     provider.onEvent((e) => {
       const hands = e.type === 'point' ? e.hands : e.type === 'tap' && e.hand ? [e.hand] : []
       const now = performance.now()
       for (const h of hands) {
         const key = `${h.player}:${h.side}`
-        const prev = this.smoothHand.get(key)
-        if (prev) {
-          const dt = Math.max(0.001, (now - prev.ts) / 1000)
-          const rawDx = h.x - prev.x
-          const rawDy = h.y - prev.y
-          if (Math.abs(rawDx) < this.STILL_EPS && Math.abs(rawDy) < this.STILL_EPS) {
-            // 静止：沿用上次位置（去抖），速度衰减到 0
-            h.x = prev.x
-            h.y = prev.y
-            h.speedX = prev.sx * (1 - this.SPEED_SMOOTH)
-            h.speedY = prev.sy * (1 - this.SPEED_SMOOTH)
-          } else {
-            h.x = prev.x + rawDx * this.SMOOTH
-            h.y = prev.y + rawDy * this.SMOOTH
-            // 速度 EMA：帧间位移/时间，混合上一次速度抑制单帧尖刺
-            const instX = rawDx / dt
-            const instY = rawDy / dt
-            h.speedX = prev.sx + (instX - prev.sx) * this.SPEED_SMOOTH
-            h.speedY = prev.sy + (instY - prev.sy) * this.SPEED_SMOOTH
+        // One-Euro 手坐标滤波（静止强平滑 / 挥动跟手）；速度取滤波器平滑导数（抑制单帧尖刺）
+        let fs = this.handFilters.get(key)
+        if (!fs) {
+          fs = {
+            fx: new OneEuroFilter(this.HAND_MIN_CUTOFF, this.HAND_BETA, this.HAND_D_CUTOFF),
+            fy: new OneEuroFilter(this.HAND_MIN_CUTOFF, this.HAND_BETA, this.HAND_D_CUTOFF),
           }
-        } else {
+          this.handFilters.set(key, fs)
+        }
+        const nx = fs.fx.filter(h.x, now)
+        const ny = fs.fy.filter(h.y, now)
+        h.speedX = fs.fx.dx
+        h.speedY = fs.fy.dy
+        // 静止去抖：滤波后位移仍小于阈值 → 沿用上次位置（彻底消除高频微抖）
+        const prev = this.smoothHand.get(key)
+        if (prev && Math.abs(nx - prev.x) < this.STILL_EPS && Math.abs(ny - prev.y) < this.STILL_EPS) {
+          h.x = prev.x
+          h.y = prev.y
           h.speedX = 0
           h.speedY = 0
+        } else {
+          h.x = nx
+          h.y = ny
         }
         this.smoothHand.set(key, { x: h.x, y: h.y, sx: h.speedX, sy: h.speedY, ts: now })
       }
@@ -155,15 +221,29 @@ export class GestureEngine {
       this.listeners.forEach((cb) => cb(e))
     })
     provider.onPose((frames) => {
+      const now = performance.now()
       for (const f of frames) {
+        let filters = this.landFilters.get(f.player)
+        if (!filters) {
+          filters = Array.from({ length: 33 }, () => [
+            new OneEuroFilter(this.SKEL_MIN_CUTOFF, this.SKEL_BETA, this.SKEL_D_CUTOFF),
+            new OneEuroFilter(this.SKEL_MIN_CUTOFF, this.SKEL_BETA, this.SKEL_D_CUTOFF),
+          ])
+          this.landFilters.set(f.player, filters)
+        }
         const prev = this.smoothLand.get(f.player)
-        const out: PosePoint[] = f.landmarks.map((pt, i) => {
-          if (!prev?.[i]) return { ...pt }
-          return {
-            ...pt,
-            x: prev[i].x + (pt.x - prev[i].x) * this.SMOOTH,
-            y: prev[i].y + (pt.y - prev[i].y) * this.SMOOTH,
+        const out = f.landmarks.map((pt, i) => {
+          const fx = filters[i][0]
+          const fy = filters[i][1]
+          const v = pt.visibility ?? 1
+          // 极低置信度（遮挡/出镜）：直接沿用上次位置，不跳
+          if (v < this.DEAD_VIS) {
+            if (prev?.[i]) return prev[i]
+            return { ...pt }
           }
+          // 低置信度：截止降为 0.25Hz（几乎保持不动），防遮挡瞬间乱跳
+          const mc = v < this.LOW_VIS ? this.LOW_VIS_CUTOFF : this.SKEL_MIN_CUTOFF
+          return { ...pt, x: fx.filter(pt.x, now, mc), y: fy.filter(pt.y, now, mc) }
         })
         this.smoothLand.set(f.player, out)
         f.landmarks = out

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref, computed } from 'vue'
 import { GameEngine } from './core/GameEngine'
 import { GestureEngine } from './core/GestureEngine'
 import { AudioManager } from './core/AudioManager'
@@ -48,8 +48,10 @@ const inputSource = ref<'auto' | 'camera' | 'mock'>(
 const effectiveSource = ref<string>('')
 
 /* 全局操作界面光标（z-index 100 最高层，任何页面/浮层之上）：
-   由 gestureUi 模块级状态驱动，App 轮询同步，避免各页面自带光标被 PoseOverlay 等盖住 */
+   由 gestureUi 模块级状态驱动，App 轮询同步，避免各页面自带光标被 PoseOverlay 等盖住。
+   对局中（倒计时/进行/暂停）不显示光标——游戏内交互是游戏自定义的 */
 const gc = ref({ x: -100, y: -100, visible: false, key: '', progress: 0 })
+const hideCursor = computed(() => ['countdown', 'playing', 'paused'].includes(state.value))
 let gcTimer = 0
 
 onMounted(async () => {
@@ -75,8 +77,13 @@ onMounted(async () => {
   })
 
   bootTip.value = '正在启动体感识别…'
+  const loaderT0 = performance.now()
   await gesture.start(1, inputSource.value)
   effectiveSource.value = gesture.effectiveSource === 'camera' ? 'camera' : 'mock'
+  // 加载遮罩最小展示时长：Mock 启动太快，保证加载动画至少可见一段（快速滑条动画可感知）
+  const MIN_LOADER_MS = 1000
+  const remain = MIN_LOADER_MS - (performance.now() - loaderT0)
+  if (remain > 0) await new Promise((r) => setTimeout(r, remain))
   loading.value = false
 
   // 手势光标层（Mock 虚拟手 / 体感提示）
@@ -177,10 +184,11 @@ async function setInputSource(src: 'auto' | 'camera' | 'mock') {
   <!-- 全局操作界面光标（z-index 100 最高层：进度环 hold-to-confirm，任何页面/浮层之上） -->
   <div
     id="global-cursor"
+    v-show="!hideCursor"
     :class="{ active: gc.key !== '' }"
     :style="{ left: gc.x + 'px', top: gc.y + 'px', visibility: gc.visible ? 'visible' : 'hidden' }"
   >
-    <svg class="cursor-ring" viewBox="0 0 100 100" :style="{ opacity: gc.key !== '' ? 1 : 0.35 }">
+    <svg class="cursor-ring" viewBox="0 0 100 100">
       <circle class="ring-bg" cx="50" cy="50" r="44"></circle>
       <circle
         class="ring-fill"

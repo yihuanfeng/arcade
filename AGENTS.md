@@ -185,6 +185,12 @@ GameInstance {
 
 24. **全局光标层（z-index 最高）**：各页面自带的进度环光标 `z-index:90` 只在各自 `.overlay`（z-index:20）的**层叠上下文内部**生效，会被独立 z-index:70 的 PoseOverlay 盖住（用户反馈"光标在背后，尤其站位页明显"）；Mock 手环层原 z15 低于所有 overlay 也被盖。彻底修法：gestureUi 增加模块级 `uiCursorState`（每个 nav 每帧写入，last-write-wins——同一时刻只有当前可见视图命中目标，结果正确），**App 顶层渲染唯一 `#global-cursor`（z-index:100）**轮询同步，各页面删除自带光标 div/样式；`#hand-cursor-layer` 提到 z100。此后任何页面/浮层/姿态窗都盖不住光标与手环，新页面不要再自画光标
 
+25. **全局光标状态写入条件（进度环动画必看）**：uiCursorState 由 gestureUi 多个 nav 实例写入，**v-show 隐藏的视图（ready/result 在大厅时）targets 元素 rect 为 0、key 恒 ''，若也写会把可见视图的 key/progress 覆盖成 0，导致进度环不转但 hold 能触发（触发在各自 nav 内部独立累计）**。写入条件必须加 `targets.some(el => el.getClientRects().length > 0)`，隐藏视图不写、可见视图才写。验证进度环：结算页 hold 返回按钮采样 `#global-cursor .ring-fill` 的 stroke-dasharray（应 0→276.5 增长）
+
+26. **One-Euro 自适应滤波（骨架/手抖动治理）**：固定指数平滑（SMOOTH=0.45）对骨架偏弱、低置信度点（遮挡/手部）乱跳。引擎转发层改 One-Euro 滤波器：静止按 minCutoff 强平滑（抖不动）、移动时 cutoff 随速度升高保持跟手；骨架 33 点每点 x/y 各一轴滤波，visibility<0.35 截止降 0.25Hz（几乎不动）、<0.2 直接沿用上次位置；手坐标 minCutoff 1.2/beta 0.15（跟手+稳）。速度信号直接取滤波器平滑导数（比 EMA 更稳，打地鼠拍打阈值 0.35 语义不变但峰值略低，手感按用户实测微调）
+
+27. **加载遮罩要有可见动画**：Mock/本地启动太快，loader 一闪而过用户看不到。进度条改 indeterminate 滑动动画（`loader-slide` 1s 无限循环渐变条），启动流程加**最小展示时长 1s**（`MIN_LOADER_MS`，gesture.start 完成后再等剩余时间才 loading=false）
+
 ## 六、验证方法（交付前必做）
 
 
