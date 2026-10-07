@@ -32,9 +32,12 @@ export const POSE_CONNECTIONS: ReadonlyArray<readonly [number, number]> = [
 
 /** One-Euro 滤波器（单轴）：
    静止时按 minCutoff 强平滑（消除识别抖动），移动时 cutoff 随速度升高（保持跟手）；
-   适合摄像头体感的骨骼/手部轨迹滤波，比固定指数平滑明显更稳且不钝。 */
+   适合摄像头体感的骨骼/手部轨迹滤波，比固定指数平滑明显更稳且不钝。
+   速度差分用「原始输入」而非滤波输出：位置滤波的滞后不会传染给速度信号，
+   beta 能立刻响应真实运动（否则移动开始后 cutoff 升不上去，整体发钝）。 */
 class OneEuroFilter {
   private prevX = 0
+  private prevRaw = 0
   private prevDx = 0
   private prevT = 0
   private initialized = false
@@ -49,13 +52,16 @@ class OneEuroFilter {
   filter(x: number, t: number, minCutoffOverride?: number): number {
     if (!this.initialized) {
       this.prevX = x
+      this.prevRaw = x
       this.prevDx = 0
       this.prevT = t
       this.initialized = true
       return x
     }
     const dt = Math.max(0.001, (t - this.prevT) / 1000)
-    const dx = (x - this.prevX) / dt
+    // 速度 = 原始输入差分（不受位置滤波滞后拖累，实时反映运动）
+    const dx = (x - this.prevRaw) / dt
+    this.prevRaw = x
     // 导数平滑（速度滤波）
     const tauD = 1 / (2 * Math.PI * this.dCutoff)
     const alphaD = 1 / (1 + tauD / dt)
@@ -99,20 +105,18 @@ export class GestureEngine {
   private handFilters = new Map<string, { fx: OneEuroFilter; fy: OneEuroFilter }>()
   private landFilters = new Map<number, OneEuroFilter[][]>()
   /** One-Euro 参数：骨架静止截止 0.8Hz（强平滑）+ 速度系数 0.5（动作仍响应）+ 导数截止 1Hz */
-  private readonly SKEL_MIN_CUTOFF = 0.8
-  private readonly SKEL_BETA = 0.5
+  private readonly SKEL_MIN_CUTOFF = 1.2
+  private readonly SKEL_BETA = 1.0
   private readonly SKEL_D_CUTOFF = 1.0
   /** 低置信度（visibility < LOW_VIS）的骨架点：截止降为 0.25Hz，几乎保持不动，防遮挡乱跳 */
-  private readonly LOW_VIS = 0.35
-  private readonly LOW_VIS_CUTOFF = 0.25
+  private readonly LOW_VIS = 0.3
+  private readonly LOW_VIS_CUTOFF = 0.8
   /** 极低置信度：直接沿用上次位置（识别已不可靠） */
   private readonly DEAD_VIS = 0.2
   /** 手坐标：截止 1.2Hz + 速度系数 0.15（跟手同时抑制抖动） */
-  private readonly HAND_MIN_CUTOFF = 1.2
-  private readonly HAND_BETA = 0.15
+  private readonly HAND_MIN_CUTOFF = 2.5
+  private readonly HAND_BETA = 0.5
   private readonly HAND_D_CUTOFF = 1.0
-  /** 静止去抖阈值（归一化位移/帧）：小于该位移视为手静止，沿用上次位置，消除高频微抖 */
-  private readonly STILL_EPS = 0.0015
 
   constructor(private createCamera: () => PoseProvider = () => new MediaPipeProvider()) {}
 
@@ -202,19 +206,10 @@ export class GestureEngine {
         }
         const nx = fs.fx.filter(h.x, now)
         const ny = fs.fy.filter(h.y, now)
+        h.x = nx
+        h.y = ny
         h.speedX = fs.fx.dx
         h.speedY = fs.fy.dy
-        // 静止去抖：滤波后位移仍小于阈值 → 沿用上次位置（彻底消除高频微抖）
-        const prev = this.smoothHand.get(key)
-        if (prev && Math.abs(nx - prev.x) < this.STILL_EPS && Math.abs(ny - prev.y) < this.STILL_EPS) {
-          h.x = prev.x
-          h.y = prev.y
-          h.speedX = 0
-          h.speedY = 0
-        } else {
-          h.x = nx
-          h.y = ny
-        }
         this.smoothHand.set(key, { x: h.x, y: h.y, sx: h.speedX, sy: h.speedY, ts: now })
       }
       if (e.type === 'point') this.hands = e.hands

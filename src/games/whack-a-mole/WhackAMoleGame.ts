@@ -570,11 +570,11 @@ export class WhackAMoleGame implements GameInstance {
       draw('mole-nose', -size * 0.07, -size * 0.18, size * 0.14, size * 0.12)
       if (tg.kind === 'helmet') {
         if (tg.hits === 0) {
-          // 头盔：蓝色安全帽，保持素材 367:265 比例，戴在头顶
-          draw('helmet', -size * 0.36, -size * 0.68, size * 0.72, size * 0.52)
+          // 头盔：蓝色安全帽，放大戴在头顶（帽檐底边 -0.42size 在眼睛 -0.35size 上方，不遮眼），保持素材 367:265 比例
+          draw('helmet', -size * 0.45, -size * 1.07, size * 0.9, size * 0.65)
         } else {
           // 头盔已被打落（下移）
-          draw('helmet', -size * 0.36, -size * 0.3, size * 0.72, size * 0.52)
+          draw('helmet', -size * 0.45, -size * 0.4, size * 0.9, size * 0.65)
           draw('mole-hair', -size * 0.25, -size * 0.56, size * 0.5, size * 0.25)
         }
       }
