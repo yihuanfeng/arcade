@@ -185,24 +185,6 @@ onUnmounted(() => {
         >返回大厅</button>
       </div>
     </div>
-
-    <!-- 手势光标：圆形进度条，加载满才触发返回 -->
-    <div
-      id="test-cursor"
-      :class="{ active: focusOnBack }"
-      :style="{ left: cursorStyle.left, top: cursorStyle.top, visibility: cursorStyle.visible ? 'visible' : 'hidden' }"
-    >
-      <svg class="cursor-ring" viewBox="0 0 100 100" :style="{ opacity: focusOnBack ? 1 : 0.35 }">
-        <circle class="ring-bg" cx="50" cy="50" r="44"></circle>
-        <circle
-          class="ring-fill"
-          cx="50"
-          cy="50"
-          r="44"
-          :stroke-dasharray="`${(backProgress * 276.5).toFixed(1)} 276.5`"
-        ></circle>
-      </svg>
-    </div>
   </div>
 </template>
 
@@ -333,31 +315,5 @@ onUnmounted(() => {
 
 .back {
   margin: 0;
-}
-
-#test-cursor {
-  position: fixed;
-  width: 90px;
-  height: 90px;
-  margin: -45px 0 0 -45px;
-  border-radius: 999px;
-  z-index: 90;
-  pointer-events: none;
-}
-#test-cursor .cursor-ring {
-  width: 100%;
-  height: 100%;
-  transform: rotate(-90deg);
-}
-#test-cursor .ring-bg {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.18);
-  stroke-width: 7;
-}
-#test-cursor .ring-fill {
-  fill: none;
-  stroke: var(--accent2);
-  stroke-width: 7;
-  stroke-linecap: round;
 }
 </style>

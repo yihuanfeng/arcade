@@ -21,6 +21,11 @@ export interface GestureUiState {
   progress: number
 }
 
+/** 全局光标状态（App 顶层渲染 #global-cursor 用，z-index 100 最高层）。
+   任何 createGestureUiNav 实例每帧状态变化都会写入这里；
+   同一时刻只有当前可见视图的 nav 命中目标，隐藏视图 targets 为空，last-write-wins 结果正确。 */
+export const uiCursorState: GestureUiState = { x: -100, y: -100, visible: false, key: '', progress: 0 }
+
 export interface GestureUiNavOptions {
   gesture: GestureEngine
   /** 实时返回可命中的目标元素；缺省 = 自动收集页面所有可见可交互元素（按 z-index 降序，浮层优先） */
@@ -130,6 +135,7 @@ export function createGestureUiNav(opts: GestureUiNavOptions): GestureUiNav {
       state.progress = 0
     }
     opts.onStateChange({ ...state })
+    Object.assign(uiCursorState, state)
     raf = requestAnimationFrame(loop)
   }
 

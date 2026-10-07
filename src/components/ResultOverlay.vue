@@ -89,24 +89,6 @@ onUnmounted(() => {
         <button ref="btnReplay" class="btn" :class="{ focus: focusIdx === 1 }" @click="emit('replay')">再来一次</button>
       </div>
     </div>
-
-    <!-- 手势光标：圆形进度条，加载满才触发 -->
-    <div
-      id="result-cursor"
-      :class="{ active: focusIdx >= 0 }"
-      :style="{ left: cursorStyle.left, top: cursorStyle.top, visibility: cursorStyle.visible ? 'visible' : 'hidden' }"
-    >
-      <svg class="cursor-ring" viewBox="0 0 100 100" :style="{ opacity: focusIdx >= 0 ? 1 : 0.35 }">
-        <circle class="ring-bg" cx="50" cy="50" r="44"></circle>
-        <circle
-          class="ring-fill"
-          cx="50"
-          cy="50"
-          r="44"
-          :stroke-dasharray="`${(progress * 276.5).toFixed(1)} 276.5`"
-        ></circle>
-      </svg>
-    </div>
   </div>
 </template>
 
@@ -239,31 +221,5 @@ h1 {
 
 .btns {
   margin-top: 8px;
-}
-
-#result-cursor {
-  position: fixed;
-  width: 110px;
-  height: 110px;
-  margin: -55px 0 0 -55px;
-  border-radius: 999px;
-  z-index: 90;
-  pointer-events: none;
-}
-#result-cursor .cursor-ring {
-  width: 100%;
-  height: 100%;
-  transform: rotate(-90deg);
-}
-#result-cursor .ring-bg {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.18);
-  stroke-width: 7;
-}
-#result-cursor .ring-fill {
-  fill: none;
-  stroke: var(--accent2);
-  stroke-width: 7;
-  stroke-linecap: round;
 }
 </style>

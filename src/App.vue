@@ -4,6 +4,7 @@ import { GameEngine } from './core/GameEngine'
 import { GestureEngine } from './core/GestureEngine'
 import { AudioManager } from './core/AudioManager'
 import { ScoreStore } from './core/ScoreStore'
+import { uiCursorState } from './core/gestureUi'
 import type { EngineEvent, EngineState } from './core/GameEngine'
 import type { GestureEvent, GameResult } from './core/types'
 import GameCenter from './components/GameCenter.vue'
@@ -45,6 +46,11 @@ const inputSource = ref<'auto' | 'camera' | 'mock'>(
   (['auto', 'camera', 'mock'] as const).find((s) => s === new URLSearchParams(location.search).get('src')) ?? 'auto'
 )
 const effectiveSource = ref<string>('')
+
+/* 全局操作界面光标（z-index 100 最高层，任何页面/浮层之上）：
+   由 gestureUi 模块级状态驱动，App 轮询同步，避免各页面自带光标被 PoseOverlay 等盖住 */
+const gc = ref({ x: -100, y: -100, visible: false, key: '', progress: 0 })
+let gcTimer = 0
 
 onMounted(async () => {
   // 竖屏提示（手机竖屏；横屏/电视正常）
@@ -92,9 +98,23 @@ onMounted(async () => {
     cursorRaf = requestAnimationFrame(drawCursor)
   }
   cursorRaf = requestAnimationFrame(drawCursor)
+
+  // 全局光标轮询同步（gestureUi 每帧写入模块级状态）
+  gcTimer = window.setInterval(() => {
+    const s = uiCursorState
+    const cur = gc.value
+    if (cur.x !== s.x || cur.y !== s.y || cur.visible !== s.visible || cur.key !== s.key || cur.progress !== s.progress) {
+      cur.x = s.x
+      cur.y = s.y
+      cur.visible = s.visible
+      cur.key = s.key
+      cur.progress = s.progress
+    }
+  }, 50)
 })
 
 onUnmounted(() => {
+  clearInterval(gcTimer)
   cancelAnimationFrame(cursorRaf)
   rotObserver?.disconnect()
   engine.detach()
@@ -153,6 +173,24 @@ async function setInputSource(src: 'auto' | 'camera' | 'mock') {
 
   <!-- 手势光标层（Mock 虚拟手等） -->
   <canvas id="hand-cursor-layer" ref="cursorCanvas"></canvas>
+
+  <!-- 全局操作界面光标（z-index 100 最高层：进度环 hold-to-confirm，任何页面/浮层之上） -->
+  <div
+    id="global-cursor"
+    :class="{ active: gc.key !== '' }"
+    :style="{ left: gc.x + 'px', top: gc.y + 'px', visibility: gc.visible ? 'visible' : 'hidden' }"
+  >
+    <svg class="cursor-ring" viewBox="0 0 100 100" :style="{ opacity: gc.key !== '' ? 1 : 0.35 }">
+      <circle class="ring-bg" cx="50" cy="50" r="44"></circle>
+      <circle
+        class="ring-fill"
+        cx="50"
+        cy="50"
+        r="44"
+        :stroke-dasharray="`${(gc.progress * 276.5).toFixed(1)} 276.5`"
+      ></circle>
+    </svg>
+  </div>
 
   <!-- 游戏中心 -->
   <GameCenter

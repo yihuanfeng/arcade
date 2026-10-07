@@ -123,24 +123,6 @@ onUnmounted(() => {
       <canvas ref="previewRef" class="preview"></canvas>
       <button class="btn ghost" :class="{ focus: cursorOn }" @click="emit('cancel')">返回大厅</button>
     </div>
-
-    <!-- 手势光标：圆形进度条，命中返回按钮后加载满才触发 -->
-    <div
-      id="ready-cursor"
-      :class="{ active: cursorOn }"
-      :style="{ left: cursorStyle.left, top: cursorStyle.top, visibility: cursorStyle.visible ? 'visible' : 'hidden' }"
-    >
-      <svg class="cursor-ring" viewBox="0 0 100 100" :style="{ opacity: cursorOn ? 1 : 0.35 }">
-        <circle class="ring-bg" cx="50" cy="50" r="44"></circle>
-        <circle
-          class="ring-fill"
-          cx="50"
-          cy="50"
-          r="44"
-          :stroke-dasharray="`${(cursorProgress * 276.5).toFixed(1)} 276.5`"
-        ></circle>
-      </svg>
-    </div>
   </div>
 </template>
 
@@ -224,31 +206,5 @@ onUnmounted(() => {
   outline: 4px solid var(--accent2);
   outline-offset: 3px;
   transform: scale(1.04);
-}
-
-#ready-cursor {
-  position: fixed;
-  width: 110px;
-  height: 110px;
-  margin: -55px 0 0 -55px;
-  border-radius: 999px;
-  z-index: 90;
-  pointer-events: none;
-}
-#ready-cursor .cursor-ring {
-  width: 100%;
-  height: 100%;
-  transform: rotate(-90deg);
-}
-#ready-cursor .ring-bg {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.18);
-  stroke-width: 7;
-}
-#ready-cursor .ring-fill {
-  fill: none;
-  stroke: var(--accent2);
-  stroke-width: 7;
-  stroke-linecap: round;
 }
 </style>

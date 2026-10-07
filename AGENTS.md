@@ -183,6 +183,8 @@ GameInstance {
 
 23. **音效协调**：用户反馈"打的时候声音不协调/太多声音"。治理：未命中 boing 节流 250ms 且音量 0.6（空挥别刷屏）；打击音统一 hit（90ms 节流、0.8 音量），头盔两拍都用 hit 不再叠 whack；whack 专用作"坏目标"音（怪物）且节流 90ms。快速连打的游戏，所有高频音效都该 throttle + 调低音量，避免"打了没声音/声音混"
 
+24. **全局光标层（z-index 最高）**：各页面自带的进度环光标 `z-index:90` 只在各自 `.overlay`（z-index:20）的**层叠上下文内部**生效，会被独立 z-index:70 的 PoseOverlay 盖住（用户反馈"光标在背后，尤其站位页明显"）；Mock 手环层原 z15 低于所有 overlay 也被盖。彻底修法：gestureUi 增加模块级 `uiCursorState`（每个 nav 每帧写入，last-write-wins——同一时刻只有当前可见视图命中目标，结果正确），**App 顶层渲染唯一 `#global-cursor`（z-index:100）**轮询同步，各页面删除自带光标 div/样式；`#hand-cursor-layer` 提到 z100。此后任何页面/浮层/姿态窗都盖不住光标与手环，新页面不要再自画光标
+
 ## 六、验证方法（交付前必做）
 
 

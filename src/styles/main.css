@@ -162,8 +162,35 @@ body,
   /* canvas 属性像素含 dpr，必须显式锁定 CSS 尺寸为视口，否则按属性像素显示导致光标位置 2 倍 */
   width: 100vw;
   height: 100vh;
-  z-index: 15;
+  z-index: 100;
   pointer-events: none;
+}
+
+/* ============ 全局操作界面光标（hold-to-confirm 进度环，最高层） ============ */
+#global-cursor {
+  position: fixed;
+  width: 110px;
+  height: 110px;
+  margin: -55px 0 0 -55px;
+  border-radius: 999px;
+  z-index: 100;
+  pointer-events: none;
+}
+#global-cursor .cursor-ring {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+#global-cursor .ring-bg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 7;
+}
+#global-cursor .ring-fill {
+  fill: none;
+  stroke: var(--accent2);
+  stroke-width: 7;
+  stroke-linecap: round;
 }
 
 /* ============ 顶部 HUD（游戏中，DOM 层大字） ============ */

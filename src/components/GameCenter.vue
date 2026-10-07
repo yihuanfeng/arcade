@@ -201,24 +201,6 @@ onUnmounted(() => {
         >完成</button>
       </div>
     </div>
-
-    <!-- 手势光标：圆形进度条，命中目标后加载满才触发点击 -->
-    <div
-      id="gesture-cursor"
-      :class="{ active: focusKey !== '' }"
-      :style="{ left: focusStyle.left, top: focusStyle.top, visibility: focusStyle.visible ? 'visible' : 'hidden' }"
-    >
-      <svg class="cursor-ring" viewBox="0 0 100 100" :style="{ opacity: focusKey !== '' ? 1 : 0.35 }">
-        <circle class="ring-bg" cx="50" cy="50" r="44"></circle>
-        <circle
-          class="ring-fill"
-          cx="50"
-          cy="50"
-          r="44"
-          :stroke-dasharray="`${(progress * 276.5).toFixed(1)} 276.5`"
-        ></circle>
-      </svg>
-    </div>
   </div>
 </template>
 
@@ -494,33 +476,5 @@ onUnmounted(() => {
   gap: 12px;
   flex-wrap: wrap;
   justify-content: center;
-}
-
-/* 手势光标：圆形进度条（置于所有覆盖层之上：设置面板打开时依然可见） */
-#gesture-cursor {
-  position: fixed;
-  width: 110px;
-  height: 110px;
-  margin: -55px 0 0 -55px;
-  border-radius: 999px;
-  z-index: 90;
-  pointer-events: none;
-  transition: left 0.08s linear, top 0.08s linear;
-}
-#gesture-cursor .cursor-ring {
-  width: 100%;
-  height: 100%;
-  transform: rotate(-90deg);
-}
-#gesture-cursor .ring-bg {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.18);
-  stroke-width: 7;
-}
-#gesture-cursor .ring-fill {
-  fill: none;
-  stroke: var(--accent2);
-  stroke-width: 7;
-  stroke-linecap: round;
 }
 </style>
