@@ -31,9 +31,10 @@ Web 端体感游戏平台（类似「活力街」）：打开浏览器，用摄�
 ## 快速开始
 
 ```bash
+cd app
 npm install
 npm run dev        # 开发：http://localhost:5174
-npm run build      # 类型检查 + 产物构建（dist/）
+npm run build      # 类型检查 + 产物构建（app/dist/）
 npm run preview    # 预览构建产物
 ```
 
@@ -55,29 +56,38 @@ npm run preview    # 预览构建产物
 ## 目录结构
 
 ```
-src/
-├── main.ts / App.vue        # 装配：引擎单例、游戏注册、视图切换、全局光标层
-├── styles/main.css          # 全局样式变量与覆盖层
-├── core/                    # 引擎层（与具体游戏无关）
-│   ├── GameEngine.ts        # 生命周期、canvas 封装、结算落库、暂停恢复
-│   ├── GestureEngine.ts     # 全局手势：Provider 切换、One-Euro 平滑、事件广播
-│   ├── gestureUi.ts         # UI 统一 hold-to-confirm 交互
-│   ├── gameKit.ts           # 通用玩法工具箱（粒子 / 飘字 / 特效）
-│   ├── AudioManager.ts      # 音频注册与播放（按游戏命名空间隔离）
-│   ├── ScoreStore.ts        # 每游戏每玩家历史统一存储
-│   ├── poseRender.ts        # 骨架绘制
-│   └── providers/           # 输入源：MockProvider（电脑模拟）/ MediaPipeProvider（摄像头）
-├── components/              # 通用 UI：游戏中心 / 站位确认 / 结算 / 姿态小窗 / 体感测试页
-└── games/                   # 每个游戏一个独立目录（资源按游戏存放）
-    ├── whack-a-mole/        # 打地鼠
-    └── co-pilot/            # 双人合力驾驶
+Arcade/
+├── app/                      # Vue 工程（整个前端应用）
+│   ├── package.json          # 依赖与脚本
+│   ├── vite.config.ts        # Vite 配置（base './'，适配 Pages 子路径）
+│   ├── index.html
+│   └── src/
+│       ├── main.ts / App.vue # 装配：引擎单例、游戏注册、视图切换、全局光标层
+│       ├── styles/main.css   # 全局样式变量与覆盖层
+│       ├── core/             # 引擎层（与具体游戏无关）
+│       │   ├── GameEngine.ts # 生命周期、canvas 封装、结算落库、暂停恢复
+│       │   ├── GestureEngine.ts # 全局手势：Provider 切换、One-Euro 平滑、事件广播
+│       │   ├── gestureUi.ts  # UI 统一 hold-to-confirm 交互
+│       │   ├── gameKit.ts    # 通用玩法工具箱（粒子 / 飘字 / 特效）
+│       │   ├── AudioManager.ts # 音频注册与播放（按游戏命名空间隔离）
+│       │   ├── ScoreStore.ts # 每游戏每玩家历史统一存储
+│       │   ├── poseRender.ts # 骨架绘制
+│       │   └── providers/    # 输入源：MockProvider / MediaPipeProvider
+│       ├── components/       # 通用 UI：游戏中心 / 站位确认 / 结算 / 姿态小窗 / 体感测试页
+│       └── games/            # 每个游戏一个独立目录（资源按游戏存放）
+│           ├── whack-a-mole/ # 打地鼠
+│           └── co-pilot/     # 双人合力驾驶
+├── arcade-resources/         # 素材库（APK 原件、解包脚本，git 过滤不入库）
+├── .github/workflows/        # GitHub Pages 自动部署
+├── README.md / AGENTS.md / ARCHITECTURE.md / LICENSE
+└── .gitignore
 ```
 
-新游戏开发：在 `src/games/<id>/` 建目录（素材放 `assets/`），实现 `GameSpec` + `GameInstance`，在 `App.vue` 注册后大厅自动出现卡片。详见 `AGENTS.md`。
+新游戏开发：在 `app/src/games/<id>/` 建目录（素材放 `assets/`），实现 `GameSpec` + `GameInstance`，在 `App.vue` 注册后大厅自动出现卡片。详见 `AGENTS.md`。
 
 ## 素材与版权说明
 
-- 游戏美术与音频素材来自作者本地解包的 `active-arcade.apk`（Unity Addressables 工程）原版资源，仅用于本项目学习与技术演示；**素材版权归原开发者/发行方所有**，请勿用于商业分发。
+- 游戏美术与音频素材来自作者本地解包 `arcade-resources/active-arcade.apk`（Unity Addressables 工程）的原版资源，仅用于本项目学习与技术演示；**素材版权归原开发者/发行方所有**，请勿用于商业分发。
 - 个别原版素材不符合预期（如黑心道具），已用代码绘制替代。
 - 骨架识别模型 `pose_landmarker_lite.task` 来自 Google MediaPipe，遵循其模型许可协议。
 

@@ -5,10 +5,8 @@
 node_modules/
 dist/
 
-# 大体积原始素材（APK 原件、解包产物，不入库）
-active-arcade.apk
-extracted/
-/assets/
+# 素材库（APK 原件、解包产物、中转素材，不入库）
+arcade-resources/
 
 # TypeScript 增量缓存
 *.tsbuildinfo

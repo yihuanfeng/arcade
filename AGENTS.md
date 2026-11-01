@@ -14,44 +14,50 @@
 
 * Vue 3.5 + Vite 6 + TypeScript **严格模式**（vue-tsc；**未使用变量 TS6133 会直接阻断构建**，写完代码必须清理无用 import / 变量）
 
-* 构建：`export PATH="/Users/cindy/.nvm/versions/node/v22.23.2/bin:$PATH" && cd /Users/cindy/work/Arcade && npm run build`
+* 构建：`export PATH="/Users/cindy/.nvm/versions/node/v22.23.2/bin:$PATH" && cd /Users/cindy/work/Arcade/app && npm run build`
 
-* 本地预览：`npm run dev`（:5174）；发布预览常驻 `http://127.0.0.1:8932`（vite preview，服务 dist）
+* 本地预览：`npm run dev`（:5174）；发布预览常驻 `http://127.0.0.1:8932`（vite preview，服务 app/dist）
 
 * 打开页面带 `?src=mock` 强制 Mock 输入（不开摄像头）；`?src=camera` 摄像头
 
 * 仓库已有 git 提交（身份 Arcade Dev [dev@arcade.local](mailto:dev@arcade.local)，仅本仓库配置）
+
+* 工程包在 `app/` 子目录（Vue 工程整体），素材库 `arcade-resources/` 在项目根（git 过滤不入库）
 
 ## 三、目录结构
 
 
 
 ```
-src/
-├── main.ts / App.vue          # 装配：引擎单例、游戏注册、视图切换、光标层
-├── styles/main.css            # 全局：CSS 变量（--fs-hero/title/body/sub/note）、覆盖层
-├── core/                      # 引擎层（与具体游戏无关，新游戏不许改坏这里）
-│   ├── GameEngine.ts          # 生命周期、canvas、toCanvas 坐标封装、结算落库、visibilitychange 暂停
-│   ├── GestureEngine.ts       # 全局手势：Provider 切换、转发层平滑/静止去抖/速度 EMA、onEvent/onPose
-│   ├── gameKit.ts             # 通用玩法工具箱：粒子爆发 / 飘字 / 特效（每局注入 ctx.fx，换局自动清空）
-│   ├── gestureUi.ts           # UI 统一交互 hold-to-confirm（进度环光标）
-│   ├── AudioManager.ts        # 音频注册与播放（按游戏命名空间隔离）
-│   ├── ScoreStore.ts          # 每游戏每玩家历史统一存储（最高/场次/最近 10 局 + 自定义 stats）
-│   ├── poseRender.ts          # 骨架绘制（PoseOverlay / 测试页共用）
-│   ├── types.ts               # GameSpec / GameInstance / GameContext / GestureEvent / MatchConfig…
-│   └── providers/
-│       ├── MockProvider.ts    # 电脑模拟：鼠标/键盘 → 双手 → 全区坐标
-│       └── MediaPipeProvider.ts # 摄像头：MediaPipe 手部 + 骨架
-├── components/                # 通用 UI（所有游戏共用，新游戏复用，不要各自重写）
-│   ├── GameCenter.vue         # 大厅：大标题 + 人数筛选（右上）+ 3 列游戏网格 + 底部设置
-│   ├── ReadyOverlay.vue       # 站位确认：手可见保持 3s 自动开始
-│   ├── ResultOverlay.vue      # 结算：hold 交互返回/再来一次
-│   ├── PoseOverlay.vue        # 右下角霓虹骨架小窗（全局常驻，P1 蓝 P2 红 P3 紫 P4 绿）
-│   └── GestureTestPage.vue    # 体感测试页（骨架预览 + 坐标 + tap 计数）
-└── games/                     # 每个游戏一个独立目录（资源按游戏存放）
-    └── whack-a-mole/
-        ├── WhackAMoleGame.ts  # GameSpec + GameInstance 实现
-        └── assets/{img,audio} # 该游戏素材（APK 原版提取）
+app/                          # Vue 工程（整个前端应用）
+├── src/
+│   ├── main.ts / App.vue          # 装配：引擎单例、游戏注册、视图切换、光标层
+│   ├── styles/main.css            # 全局：CSS 变量（--fs-hero/title/body/sub/note）、覆盖层
+│   ├── core/                      # 引擎层（与具体游戏无关，新游戏不许改坏这里）
+│   │   ├── GameEngine.ts          # 生命周期、canvas、toCanvas 坐标封装、结算落库、visibilitychange 暂停
+│   │   ├── GestureEngine.ts       # 全局手势：Provider 切换、转发层 One-Euro 平滑、onEvent/onPose
+│   │   ├── gameKit.ts             # 通用玩法工具箱：粒子爆发 / 飘字 / 特效（每局注入 ctx.fx，换局自动清空）
+│   │   ├── gestureUi.ts           # UI 统一交互 hold-to-confirm（进度环光标）
+│   │   ├── AudioManager.ts        # 音频注册与播放（按游戏命名空间隔离）
+│   │   ├── ScoreStore.ts          # 每游戏每玩家历史统一存储（最高/场次/最近 10 局 + 自定义 stats）
+│   │   ├── poseRender.ts          # 骨架绘制（PoseOverlay / 测试页共用）
+│   │   ├── types.ts               # GameSpec / GameInstance / GameContext / GestureEvent / MatchConfig…
+│   │   └── providers/
+│   │       ├── MockProvider.ts    # 电脑模拟：鼠标/键盘 → 双手 → 全区坐标
+│   │       └── MediaPipeProvider.ts # 摄像头：MediaPipe 手部 + 骨架
+│   ├── components/                # 通用 UI（所有游戏共用，新游戏复用，不要各自重写）
+│   │   ├── GameCenter.vue         # 大厅：大标题 + 人数筛选（右上）+ 3 列游戏网格 + 底部设置
+│   │   ├── ReadyOverlay.vue       # 站位确认：手可见保持 3s 自动开始
+│   │   ├── ResultOverlay.vue      # 结算：hold 交互返回/再来一次
+│   │   ├── PoseOverlay.vue        # 右下角霓虹骨架小窗（全局常驻，P1 蓝 P2 红 P3 紫 P4 绿）
+│   │   └── GestureTestPage.vue    # 体感测试页（骨架预览 + 坐标 + tap 计数）
+│   └── games/                     # 每个游戏一个独立目录（资源按游戏存放）
+│       ├── whack-a-mole/          # 打地鼠
+│       │   ├── WhackAMoleGame.ts  # GameSpec + GameInstance 实现
+│       │   └── assets/{img,audio} # 该游戏素材（APK 原版提取）
+│       └── co-pilot/              # 双人合力驾驶
+├── package.json / vite.config.ts / index.html / tsconfig*.json
+arcade-resources/             # 素材库（APK 原件、解包脚本，git 过滤不入库）
 ```
 
 ## 四、核心架构（新游戏必须遵守的规则）
@@ -173,7 +179,7 @@ GameInstance {
 
 18. **分轴合体控制（双人成行式配合）**：co-pilot 的合体操控模式——P1 手控飞船 Y、P2 手控飞船 X，两人各控一轴缺一不可（单人降级为单手直控）；双人配合输入用**位标记**（能量球 touch 位：1=P1、2=P2，两人都碰到 =3 才收），判"同时"不要用时间窗口，用逐帧累积位标记最稳
 
-19. **APK 其他游戏素材**：active-arcade.apk 是 Unity Addressables 工程，其余体感游戏（spacepong/laserdodge/flappyjump/bunnyhop 等）素材在 `assets/aa/Android/*.bundle`，用 Python UnityPy 解包（Texture2D → PIL Image，ASTC 自动解码）；**注意别手写 PNG 头**（曾把原始像素当 PNG 写出坏文件），直接 `img.convert('RGBA').save(p)`；spacepong 只有背景/标题贴图（space-pong-bg 暗紫太空网格可当 co-pilot 背景），玩法元素（飞船/障碍）没有独立贴图，用代码绘制替代；音效直接复用打地鼠同源 mp3（都来自 APK，按游戏目录复制一份）。APK 原件与解包中转已移出仓库，存于 `~/Documents/arcade-resources/`（active-arcade.apk / extracted / assets）
+19. **APK 其他游戏素材**：active-arcade.apk 是 Unity Addressables 工程，其余体感游戏（spacepong/laserdodge/flappyjump/bunnyhop 等）素材在 `assets/aa/Android/*.bundle`，用 Python UnityPy 解包（Texture2D → PIL Image，ASTC 自动解码）；**注意别手写 PNG 头**（曾把原始像素当 PNG 写出坏文件），直接 `img.convert('RGBA').save(p)`；spacepong 只有背景/标题贴图（space-pong-bg 暗紫太空网格可当 co-pilot 背景），玩法元素（飞船/障碍）没有独立贴图，用代码绘制替代；音效直接复用打地鼠同源 mp3（都来自 APK，按游戏目录复制一份）。APK 原件与解包中转在项目根 `arcade-resources/`（active-arcade.apk / extracted / assets，git 过滤不入库）
 
 20. **大厅卡片高度感知**：游戏卡片字号若只用 vw/固定值，新游戏卡片内容一变就会把页面撑高（用户反馈"新增游戏把页面撑高了"）。卡片系列字号/间距用 `clamp(min, min(xvw, yvh), max)` 高度感知压缩（icon 5.5vw/4.6vh、name 3.8vw/3.2vh、desc 2.1vw/1.9vh），`.overlay` 加 `overflow:hidden` 兜底；目标：任何视口（含手机横屏矮屏）一屏无滚动，未来 3×3=9 个游戏也能放下
 
