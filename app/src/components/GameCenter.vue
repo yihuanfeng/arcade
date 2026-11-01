@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import type { GameSpec } from '../core/types'
 import type { GestureEngine } from '../core/GestureEngine'
 import { createGestureUiNav } from '../core/gestureUi'
@@ -8,6 +8,7 @@ const props = defineProps<{
   games: GameSpec[]
   gesture: GestureEngine
   inputSource: string
+  effectiveSource?: string
 }>()
 
 const emit = defineEmits<{
@@ -15,6 +16,8 @@ const emit = defineEmits<{
   (e: 'input-source', src: 'auto' | 'camera' | 'mock'): void
   (e: 'open-test'): void
 }>()
+
+const effectiveLabel = computed(() => (props.effectiveSource === 'camera' ? '摄像头' : props.effectiveSource === 'mock' ? '模拟' : '未启动'))
 
 const playerCount = ref(1)
 const settingsOpen = ref(false)
@@ -174,7 +177,7 @@ onUnmounted(() => {
     <div v-if="settingsOpen" class="settings-panel">
       <h2>设置</h2>
       <div class="src-group">
-        <div class="label">体感输入</div>
+        <div class="label">体感输入 <span class="eff-hint">当前：{{ effectiveLabel }}</span></div>
         <div class="src-btns">
           <button
             v-for="(label, key) in srcOptions"
@@ -438,6 +441,12 @@ onUnmounted(() => {
   font-size: var(--fs-sub);
   color: var(--sub);
   margin-bottom: 8px;
+}
+
+.src-group .label .eff-hint {
+  font-size: calc(var(--fs-sub) * 0.8);
+  color: var(--note);
+  margin-left: 8px;
 }
 
 .src-btns {
